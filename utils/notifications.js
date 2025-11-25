@@ -32,7 +32,7 @@ const notifyAdminsNewPayment = async (user, file_id) => {
 
     for (const adminId of ADMIN_IDS) {
         try {
-            await bot.telegram.sendPhoto(adminId, file_id, {
+            await bot.sendPhoto(adminId, file_id, {
                 caption: notificationMessage,
                 parse_mode: 'Markdown',
                 ...options
@@ -46,8 +46,7 @@ const notifyAdminsNewPayment = async (user, file_id) => {
 const notifyAdminsWithdrawal = async (user, userId) => {
     for (const adminId of ADMIN_IDS) {
         try {
-            await bot.telegram.sendMessage(
-                adminId,
+            await bot.sendMessage(adminId,
                 `🔔 *NEW WITHDRAWAL REQUEST*\n\n` +
                 `👤 User: ${user.firstName}\n` +
                 `💰 Amount: ${user.rewards} ETB\n` +
