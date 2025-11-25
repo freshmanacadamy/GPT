@@ -22,16 +22,18 @@ const handleAdminPanel = async (msg) => {
     
     // In handleAdminPanel function, add tutorial options:
 const options = {
-    reply_markup: {
-        keyboard: [
-            [{ text: '👥 Manage Students' }, { text: '💰 Review Payments' }],
-            [{ text: '📚 Upload Tutorial' }, { text: '📚 Manage Tutorials' }],
-            [{ text: '📊 Student Stats' }, { text: '❌ Block Student' }],
-            // ... rest of buttons ...
-        ],
-        resize_keyboard: true
-    }
-};
+        reply_markup: {
+            keyboard: [
+                [{ text: '👥 Manage Students' }, { text: '💰 Review Payments' }],
+                [{ text: '📊 Student Stats' }, { text: '❌ Block Student' }],
+                [{ text: '📈 Registration Trends' }, { text: '👤 Add Admin' }],
+                [{ text: '🔧 Maintenance Mode' }, { text: '✉️ Message Student' }],
+                 [{ text: '📚 Upload Tutorial' }, { text: '📚 Manage Tutorials' }],
+                [{ text: '📢 Broadcast Message' }, { text: '⚙️ Bot Settings' }]
+            ],
+            resize_keyboard: true
+        }
+    };
 
     const adminMessage = 
         `🛡️ *ADMIN PANEL*\n\n` +
@@ -146,4 +148,5 @@ module.exports = {
     handleAdminDetails,
     handleAdminStats
 };
+
 
