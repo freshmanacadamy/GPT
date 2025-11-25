@@ -1,9 +1,9 @@
 const bot = require('../config/bot');
 const { REGISTRATION_FEE } = require('../config/environment');
 
-// Get admin ID from environment (single admin)
+// Get admin ID from environment
 const getAdminId = () => {
-    return process.env.ADMIN_ID; // Changed from ADMIN_CHAT_ID to ADMIN_ID
+    return process.env.ADMIN_ID;
 };
 
 const notifyAdminsNewRegistration = async (user) => {
@@ -13,6 +13,8 @@ const notifyAdminsNewRegistration = async (user) => {
         console.log('❌ ADMIN_ID not set in environment variables');
         return;
     }
+
+    console.log('📤 Sending to admin ID:', adminId);
 
     try {
         const notificationMessage = 
@@ -50,6 +52,7 @@ const notifyAdminsNewRegistration = async (user) => {
     }
 };
 
+// Keep your existing functions for payment and withdrawal
 const notifyAdminsNewPayment = async (user, file_id) => {
     const adminId = getAdminId();
     
