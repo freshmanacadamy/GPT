@@ -151,7 +151,7 @@ const showAccountDetails = async (chatId, paymentMethod, userId) => {
     const options = {
         reply_markup: {
             keyboard: [
-                [{ text: "📎 Upload Payment Screenshot" }],
+        
                 [{ text: "❌ Cancel Registration" }, { text: "🏠 Homepage" }]
             ],
             resize_keyboard: true
@@ -435,4 +435,5 @@ module.exports = {
     handleNavigation,
     handleRegistrationCallback
 };
+
 
