@@ -166,6 +166,11 @@ const showAccountDetails = async (chatId, paymentMethod, userId) => {
 const completeRegistration = async (chatId, userId) => {
     const user = await getUser(userId);
     
+    if (!user) {
+        console.error('❌ User not found for completion:', userId);
+        return;
+    }
+
     // Update user status
     user.registrationStep = 'completed';
     user.paymentStatus = 'pending_approval';
@@ -190,25 +195,45 @@ const completeRegistration = async (chatId, userId) => {
     }, 2000);
 };
 
-// Notify admin about new registration
+// Notify admin about new registration with approval buttons
 const notifyAdmin = async (userId, user) => {
     const adminChatId = process.env.ADMIN_CHAT_ID;
     
     if (!adminChatId) {
-        console.log('⚠️ ADMIN_CHAT_ID not set, skipping admin notification');
+        console.log('❌ ADMIN_CHAT_ID not set in environment variables');
         return;
     }
 
-    const adminMessage = 
-        `📋 *NEW REGISTRATION REQUEST*\n\n` +
-        `👤 User: ${user.name}\n` +
-        `📱 Phone: ${user.phone}\n` +
-        `🎓 Stream: ${user.studentType === 'natural' ? 'Natural Science' : 'Social Science'}\n` +
-        `💳 Payment: ${user.paymentMethod === 'telebirr' ? 'TeleBirr' : 'CBE Birr'}\n` +
-        `🆔 User ID: ${userId}\n` +
-        `📅 Registered: ${new Date().toLocaleString()}`;
+    try {
+        const adminMessage = 
+            `📋 *NEW REGISTRATION REQUEST*\n\n` +
+            `👤 User: ${user.name}\n` +
+            `📱 Phone: ${user.phone}\n` +
+            `🎓 Stream: ${user.studentType === 'natural' ? 'Natural Science' : 'Social Science'}\n` +
+            `💳 Payment: ${user.paymentMethod === 'telebirr' ? 'TeleBirr' : 'CBE Birr'}\n` +
+            `🆔 User ID: ${userId}\n` +
+            `📅 Registered: ${new Date().toLocaleString()}`;
 
-    await bot.sendMessage(adminChatId, adminMessage, { parse_mode: 'Markdown' });
+        const approvalOptions = {
+            reply_markup: {
+                inline_keyboard: [
+                    [
+                        { text: '✅ Approve', callback_data: `admin_approve_${userId}` },
+                        { text: '❌ Reject', callback_data: `admin_reject_${userId}` }
+                    ],
+                    [
+                        { text: '👁️ View Details', callback_data: `admin_details_${userId}` }
+                    ]
+                ]
+            },
+            parse_mode: 'Markdown'
+        };
+
+        await bot.sendMessage(adminChatId, adminMessage, approvalOptions);
+        console.log(`✅ Admin notification sent for user: ${userId}`);
+    } catch (error) {
+        console.error('❌ Error sending admin notification:', error);
+    }
 };
 
 // Handle name input
@@ -328,7 +353,7 @@ const handlePaymentMethodSelection = async (callbackQuery) => {
 
         await bot.answerCallbackQuery(callbackQuery.id);
         
-        // Show account details and ask for screenshot (DO NOT complete registration yet)
+        // Show account details and ask for screenshot
         await showAccountDetails(chatId, paymentMethod, userId);
     }
 };
@@ -342,7 +367,8 @@ const handleScreenshotUpload = async (msg) => {
     if (user?.registrationStep === 'awaiting_screenshot' && 
         (msg.photo || msg.document || msg.text === "📎 Upload Payment Screenshot")) {
         
-        // Complete registration ONLY when screenshot is sent
+        console.log(`📸 Screenshot received from user: ${userId}`);
+        // Complete registration when screenshot is sent
         await completeRegistration(chatId, userId);
     }
 };
