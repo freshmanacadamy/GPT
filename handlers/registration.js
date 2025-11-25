@@ -211,7 +211,7 @@ const notifyAdmin = async (userId, user) => {
     await bot.sendMessage(adminChatId, adminMessage, { parse_mode: 'Markdown' });
 };
 
-// Show main menu (placeholder - implement your main menu)
+// Show main menu
 const showMainMenu = async (chatId) => {
     const message = `🏠 *Welcome to Main Menu*\n\nSelect an option:`;
     
@@ -272,7 +272,7 @@ const handleStreamSelection = async (callbackQuery) => {
     const user = await getUser(userId);
     const stream = callbackQuery.data.replace('stream_', '');
 
-    if (user?.registrationStep === 'awaiting_stream') {
+    if (user && !user.isVerified) {
         user.studentType = stream;
         user.registrationStep = 'awaiting_payment_method';
         await setUser(userId, user);
@@ -281,11 +281,11 @@ const handleStreamSelection = async (callbackQuery) => {
         const updatedKeyboard = [
             [
                 { 
-                    text: stream === 'natural' ? '✅ Natural Science' : '⚪ Natural Science', 
+                    text: stream === 'natural' ? '✅ Natural Science' : 'Natural Science', 
                     callback_data: 'stream_natural' 
                 },
                 { 
-                    text: stream === 'social' ? '✅ Social Science' : '⚪ Social Science', 
+                    text: stream === 'social' ? '✅ Social Science' : 'Social Science', 
                     callback_data: 'stream_social' 
                 }
             ]
@@ -293,9 +293,13 @@ const handleStreamSelection = async (callbackQuery) => {
 
         await bot.editMessageReplyMarkup(
             { inline_keyboard: updatedKeyboard },
-            { chat_id: chatId, message_id: callbackQuery.message.message_id }
+            {
+                chat_id: chatId,
+                message_id: callbackQuery.message.message_id
+            }
         );
 
+        await bot.answerCallbackQuery(callbackQuery.id);
         await askForPaymentMethod(chatId, stream);
     }
 };
@@ -307,7 +311,7 @@ const handlePaymentMethodSelection = async (callbackQuery) => {
     const user = await getUser(userId);
     const paymentMethod = callbackQuery.data.replace('payment_', '');
 
-    if (user?.registrationStep === 'awaiting_payment_method') {
+    if (user && !user.isVerified) {
         user.paymentMethod = paymentMethod;
         user.registrationStep = 'awaiting_screenshot';
         await setUser(userId, user);
@@ -316,11 +320,11 @@ const handlePaymentMethodSelection = async (callbackQuery) => {
         const updatedKeyboard = [
             [
                 { 
-                    text: paymentMethod === 'telebirr' ? '✅ TeleBirr' : '⚪ TeleBirr', 
+                    text: paymentMethod === 'telebirr' ? '✅ TeleBirr' : 'TeleBirr', 
                     callback_data: 'payment_telebirr' 
                 },
                 { 
-                    text: paymentMethod === 'cbe' ? '✅ CBE Birr' : '⚪ CBE Birr', 
+                    text: paymentMethod === 'cbe' ? '✅ CBE Birr' : 'CBE Birr', 
                     callback_data: 'payment_cbe' 
                 }
             ]
@@ -328,9 +332,13 @@ const handlePaymentMethodSelection = async (callbackQuery) => {
 
         await bot.editMessageReplyMarkup(
             { inline_keyboard: updatedKeyboard },
-            { chat_id: chatId, message_id: callbackQuery.message.message_id }
+            {
+                chat_id: chatId,
+                message_id: callbackQuery.message.message_id
+            }
         );
 
+        await bot.answerCallbackQuery(callbackQuery.id);
         await showAccountDetails(chatId, paymentMethod);
     }
 };
@@ -353,40 +361,60 @@ const handleCancelRegistration = async (msg) => {
     const chatId = msg.chat.id;
     const userId = msg.from.id;
 
-    if (msg.text === '❌ Cancel Registration') {
-        // Reset user registration data
-        const userData = {
-            registrationStep: 'not_started',
-            paymentStatus: 'not_started',
-            name: null,
-            phone: null,
-            studentType: null,
-            paymentMethod: null
-        };
-        await setUser(userId, userData);
+    // Reset user registration data
+    const userData = {
+        registrationStep: 'not_started',
+        paymentStatus: 'not_started',
+        name: null,
+        phone: null,
+        studentType: null,
+        paymentMethod: null
+    };
+    await setUser(userId, userData);
 
-        await bot.sendMessage(chatId, '❌ Registration cancelled.', { parse_mode: 'Markdown' });
-        await showMainMenu(chatId);
-    }
+    await bot.sendMessage(chatId, '❌ Registration cancelled.', { parse_mode: 'Markdown' });
+    await showMainMenu(chatId);
 };
 
 // Handle homepage navigation
 const handleHomepage = async (msg) => {
     const chatId = msg.chat.id;
-    const userId = msg.from.id;
+    await showMainMenu(chatId);
+};
 
-    if (msg.text === '🏠 Homepage') {
-        await showMainMenu(chatId);
+// Handle text messages for navigation
+const handleNavigation = async (msg) => {
+    const text = msg.text;
+    
+    if (text === '❌ Cancel Registration') {
+        await handleCancelRegistration(msg);
+        return true;
+    } else if (text === '🏠 Homepage') {
+        await handleHomepage(msg);
+        return true;
     }
+    return false;
+};
+
+// Handle callback queries
+const handleCallbackQuery = async (callbackQuery) => {
+    const data = callbackQuery.data;
+    
+    if (data.startsWith('stream_')) {
+        await handleStreamSelection(callbackQuery);
+        return true;
+    } else if (data.startsWith('payment_')) {
+        await handlePaymentMethodSelection(callbackQuery);
+        return true;
+    }
+    return false;
 };
 
 module.exports = {
     handleRegisterTutorial,
     handleNameInput,
     handleContactShared,
-    handleStreamSelection,
-    handlePaymentMethodSelection,
     handleScreenshotUpload,
-    handleCancelRegistration,
-    handleHomepage
+    handleNavigation,
+    handleCallbackQuery
 };
