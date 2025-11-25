@@ -11,17 +11,9 @@ process.on('uncaughtException', (error) => {
 const bot = require('./config/bot');
 const { showMainMenu } = require('./handlers/menu');
 
-// Import NEW registration handlers
-const { 
-    handleRegisterTutorial, 
-    handleNameInput, 
-    handleContactShared, 
-    handleScreenshotUpload,
-    handleNavigation,
-    handleCallbackQuery 
-} = require('./handlers/registration');
-
-const { handlePayFee } = require('./handlers/payment');
+// Import handlers
+const { handleRegisterTutorial, showPaymentMethods, showAccountDetails, handleContactShared, handleNameInput, handleFormSubmission, handleStartOver } = require('./handlers/registration');
+const { handleUploadScreenshot, handlePaymentScreenshot, handlePayFee } = require('./handlers/payment');
 const { handleInviteEarn, handleLeaderboard, handleMyReferrals, handleReferralStart } = require('./handlers/referral');
 const { handleMyProfile, handleWithdrawRewards, handleChangePaymentMethod, handleSetPaymentMethod, handleSetAccountNumber, handleSetAccountName } = require('./handlers/profile');
 const { handleAdminPanel, handleAdminApprove, handleAdminReject, handleAdminDetails, handleAdminStats } = require('./handlers/admin');
@@ -41,10 +33,6 @@ const handleMessage = async (msg) => {
     if (!text && !msg.contact && !msg.photo && !msg.document) return;
 
     try {
-        // First check if it's a navigation command (Cancel Registration, Homepage)
-        const isNavigation = await handleNavigation(msg);
-        if (isNavigation) return;
-
         // Handle contact sharing
         if (msg.contact) {
             await handleContactShared(msg);
@@ -53,7 +41,7 @@ const handleMessage = async (msg) => {
 
         // Handle photo/document (payment screenshot)
         if (msg.photo || msg.document) {
-            await handleScreenshotUpload(msg);
+            await handlePaymentScreenshot(msg);
             return;
         }
 
@@ -72,9 +60,6 @@ const handleMessage = async (msg) => {
                 case '/stats':
                     await handleAdminStats(msg);
                     break;
-                case '/register':
-                    await handleRegisterTutorial(msg);
-                    break;
                 default:
                     await showMainMenu(chatId);
             }
@@ -82,7 +67,6 @@ const handleMessage = async (msg) => {
             // Handle button clicks and form interactions
             switch (text) {
                 case '📚 Register for Tutorial':
-                case '🆕 Register':
                     await handleRegisterTutorial(msg);
                     break;
                 case '👤 My Profile':
@@ -104,8 +88,7 @@ const handleMessage = async (msg) => {
                     await handlePayFee(msg);
                     break;
                 case '📤 Upload Payment Screenshot':
-                case '📎 Upload Payment Screenshot':
-                    await handleScreenshotUpload(msg);
+                    await handleUploadScreenshot(msg);
                     break;
                 case '💰 Withdraw Rewards':
                     await handleWithdrawRewards(msg);
@@ -115,6 +98,18 @@ const handleMessage = async (msg) => {
                     break;
                 case '📊 My Referrals':
                     await handleMyReferrals(msg);
+                    break;
+                case '✅ SUBMIT REGISTRATION':
+                    await handleFormSubmission(msg);
+                    break;
+                case '🔄 START OVER':
+                    await handleStartOver(msg);
+                    break;
+                case '📎 Upload Payment Screenshot':
+                    await handleUploadScreenshot(msg);
+                    break;
+                case '🔙 Change Payment Method':
+                    await handleRegisterTutorial(msg);
                     break;
                 case '🔙 Back to Menu':
                     await showMainMenu(chatId);
@@ -162,12 +157,6 @@ const handleCallbackQuery = async (callbackQuery) => {
     const chatId = message.chat.id;
 
     try {
-        // First try the new registration callback handler
-        const handled = await handleCallbackQuery(callbackQuery);
-        if (handled) {
-            return;
-        }
-
         // Admin callbacks
         if (data.startsWith('admin_approve_')) {
             const targetUserId = parseInt(data.replace('admin_approve_', ''));
@@ -180,6 +169,47 @@ const handleCallbackQuery = async (callbackQuery) => {
         else if (data.startsWith('admin_details_')) {
             const targetUserId = parseInt(data.replace('admin_details_', ''));
             await handleAdminDetails(targetUserId, userId);
+        }
+        // Registration form callbacks
+        else if (data === 'select_social') {
+            const { getUser, setUser } = require('./database/users');
+            const user = await getUser(userId);
+            if (user) {
+                user.studentType = 'Social Science';
+                await setUser(userId, user);
+                await bot.answerCallbackQuery(callbackQuery.id, { text: '✅ Social Science selected' });
+                await showPaymentMethods(chatId, userId);
+            }
+        }
+        else if (data === 'select_natural') {
+            const { getUser, setUser } = require('./database/users');
+            const user = await getUser(userId);
+            if (user) {
+                user.studentType = 'Natural Science';
+                await setUser(userId, user);
+                await bot.answerCallbackQuery(callbackQuery.id, { text: '✅ Natural Science selected' });
+                await showPaymentMethods(chatId, userId);
+            }
+        }
+        else if (data === 'payment_telebirr') {
+            const { getUser, setUser } = require('./database/users');
+            const user = await getUser(userId);
+            if (user) {
+                user.paymentMethod = 'TeleBirr';
+                await setUser(userId, user);
+                await bot.answerCallbackQuery(callbackQuery.id, { text: '✅ TeleBirr selected' });
+                await showAccountDetails(chatId, 'TeleBirr');
+            }
+        }
+        else if (data === 'payment_cbe') {
+            const { getUser, setUser } = require('./database/users');
+            const user = await getUser(userId);
+            if (user) {
+                user.paymentMethod = 'CBE Birr';
+                await setUser(userId, user);
+                await bot.answerCallbackQuery(callbackQuery.id, { text: '✅ CBE Birr selected' });
+                await showAccountDetails(chatId, 'CBE Birr');
+            }
         }
 
         await bot.answerCallbackQuery(callbackQuery.id);
@@ -248,4 +278,4 @@ module.exports = async (req, res) => {
     return res.status(405).json({ error: 'Method not allowed' });
 };
 
-console.log('✅ Fixed Tutorial Registration Bot configured for Vercel!');
+console.log('✅ Modular Tutorial Registration Bot configured for Vercel!');
