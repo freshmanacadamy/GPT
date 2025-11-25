@@ -120,7 +120,7 @@ const askForPaymentMethod = async (chatId, stream) => {
     await bot.sendMessage(chatId, message, options);
 };
 
-// Step 5: Show account details based on payment method
+// Step 5: Show account details and complete registration immediately
 const showAccountDetails = async (chatId, paymentMethod) => {
     const accountDetails = {
         'telebirr': { 
@@ -145,50 +145,26 @@ const showAccountDetails = async (chatId, paymentMethod) => {
         `💡 *Payment Instructions:*\n` +
         `1. Send exactly *${REGISTRATION_FEE} ETB* to the above account\n` +
         `2. Copy the ${isTeleBirr ? 'number' : 'account number'} easily\n` +
-        `3. Take a clear screenshot of transaction\n` +
-        `4. Upload using the button below\n\n` +
-        `📸 *Ready to upload your payment screenshot?*`;
+        `3. Take a clear screenshot of transaction\n\n` +
+        `📸 *Send your payment screenshot now:*`;
 
-    const options = {
-        reply_markup: {
-            keyboard: [
-                [{ text: "📎 Upload Payment Screenshot" }],
-                [{ text: "❌ Cancel Registration" }, { text: "🏠 Homepage" }]
-            ],
-            resize_keyboard: true
-        },
-        parse_mode: 'Markdown'
-    };
-
-    await bot.sendMessage(chatId, message, options);
+    await bot.sendMessage(chatId, message, { parse_mode: 'Markdown' });
+    
+    // Immediately show success message after payment method selection
+    await completeRegistration(chatId);
 };
 
-// Step 6: Handle registration completion
-const completeRegistration = async (chatId, userId) => {
-    const user = await getUser(userId);
-    
-    // Update user status
-    user.registrationStep = 'completed';
-    user.paymentStatus = 'pending_approval';
-    await setUser(userId, user);
-
-    // Send success message (full-screen effect)
+// Handle registration completion
+const completeRegistration = async (chatId) => {
+    // Send success message immediately
     const successMessage = 
         `🎉 *REGISTRATION SUCCESSFUL!*\n\n` +
         `✅ Your registration is complete\n` +
         `✅ Payment verification pending\n` +
         `⏳ Please wait for admin approval\n\n` +
-        `📋 *Registration Details:*\n` +
-        `👤 Name: ${user.name}\n` +
-        `📱 Phone: ${user.phone}\n` +
-        `🎓 Stream: ${user.studentType === 'natural' ? 'Natural Science' : 'Social Science'}\n` +
-        `💳 Payment: ${user.paymentMethod === 'telebirr' ? 'TeleBirr' : 'CBE Birr'}\n\n` +
         `_You will be notified once approved._`;
 
     await bot.sendMessage(chatId, successMessage, { parse_mode: 'Markdown' });
-
-    // Send approval notification to admin
-    await notifyAdmin(userId, user);
 
     // Auto-redirect to main menu after 2 seconds
     setTimeout(async () => {
@@ -300,7 +276,7 @@ const handlePaymentMethodSelection = async (callbackQuery) => {
 
     if (user && !user.isVerified) {
         user.paymentMethod = paymentMethod;
-        user.registrationStep = 'awaiting_screenshot';
+        user.registrationStep = 'completed';
         await setUser(userId, user);
 
         // Update inline buttons to show selection
@@ -326,20 +302,12 @@ const handlePaymentMethodSelection = async (callbackQuery) => {
         );
 
         await bot.answerCallbackQuery(callbackQuery.id);
-        await showAccountDetails(chatId, paymentMethod);
-    }
-};
-
-// Handle screenshot upload
-const handleScreenshotUpload = async (msg) => {
-    const chatId = msg.chat.id;
-    const userId = msg.from.id;
-    const user = await getUser(userId);
-
-    if (user?.registrationStep === 'awaiting_screenshot' && 
-        (msg.photo || msg.document || msg.text === "📎 Upload Payment Screenshot")) {
         
-        await completeRegistration(chatId, userId);
+        // Show account details and complete registration immediately
+        await showAccountDetails(chatId, paymentMethod);
+        
+        // Send admin notification
+        await notifyAdmin(userId, user);
     }
 };
 
@@ -401,7 +369,6 @@ module.exports = {
     handleRegisterTutorial,
     handleNameInput,
     handleContactShared,
-    handleScreenshotUpload,
     handleNavigation,
     handleRegistrationCallback
 };
