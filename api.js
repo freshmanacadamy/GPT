@@ -11,8 +11,17 @@ process.on('uncaughtException', (error) => {
 const bot = require('./config/bot');
 const { showMainMenu } = require('./handlers/menu');
 
-// Import handlers
-const { handleRegisterTutorial, showPaymentMethods, showAccountDetails, handleContactShared, handleNameInput, handleFormSubmission, handleStartOver } = require('./handlers/registration');
+// Import handlers (UPDATED)
+const { 
+    startRegistration,
+    cancelRegistration,
+    handleNameInput,
+    handleContactShared,
+    handleStudentTypeCallback,
+    handlePaymentSelection,
+    handleScreenshotUpload
+} = require('./handlers/registration');
+
 const { handleUploadScreenshot, handlePaymentScreenshot, handlePayFee } = require('./handlers/payment');
 const { handleInviteEarn, handleLeaderboard, handleMyReferrals, handleReferralStart } = require('./handlers/referral');
 const { handleMyProfile, handleWithdrawRewards, handleChangePaymentMethod, handleSetPaymentMethod, handleSetAccountNumber, handleSetAccountName } = require('./handlers/profile');
@@ -33,14 +42,17 @@ const handleMessage = async (msg) => {
     if (!text && !msg.contact && !msg.photo && !msg.document) return;
 
     try {
-        // Handle contact sharing
+        // Handle contact sharing (for registration)
         if (msg.contact) {
             await handleContactShared(msg);
             return;
         }
 
-        // Handle photo/document (payment screenshot)
+        // Handle photo/document (payment screenshot or registration screenshot)
         if (msg.photo || msg.document) {
+            // Registration screenshot handler (will ignore if not in upload step)
+            await handleScreenshotUpload(msg);
+            // Existing payment screenshot logic if you still use it
             await handlePaymentScreenshot(msg);
             return;
         }
@@ -67,7 +79,7 @@ const handleMessage = async (msg) => {
             // Handle button clicks and form interactions
             switch (text) {
                 case '📚 Register for Tutorial':
-                    await handleRegisterTutorial(msg);
+                    await startRegistration(msg);
                     break;
                 case '👤 My Profile':
                     await handleMyProfile(msg);
@@ -88,7 +100,9 @@ const handleMessage = async (msg) => {
                     await handlePayFee(msg);
                     break;
                 case '📤 Upload Payment Screenshot':
-                    await handleUploadScreenshot(msg);
+                case '📎 Upload Payment Screenshot':
+                case '📸 Upload Screenshot':
+                    await handleScreenshotUpload(msg);
                     break;
                 case '💰 Withdraw Rewards':
                     await handleWithdrawRewards(msg);
@@ -99,27 +113,19 @@ const handleMessage = async (msg) => {
                 case '📊 My Referrals':
                     await handleMyReferrals(msg);
                     break;
-                case '✅ SUBMIT REGISTRATION':
-                    await handleFormSubmission(msg);
-                    break;
-                case '🔄 START OVER':
-                    await handleStartOver(msg);
-                    break;
-                case '📎 Upload Payment Screenshot':
-                    await handleUploadScreenshot(msg);
-                    break;
-                case '🔙 Change Payment Method':
-                    await handleRegisterTutorial(msg);
-                    break;
                 case '🔙 Back to Menu':
+                case '🏠 Home Page':
                     await showMainMenu(chatId);
+                    break;
+                case '❌ Cancel Registration':
+                    await cancelRegistration(msg);
                     break;
                 case '📱 TeleBirr':
                 case '🏦 CBE Birr':
                     await handleSetPaymentMethod(msg);
                     break;
                 default:
-                    // Handle name input and other text
+                    // Handle name input and other free text
                     await handleNameInput(msg);
             }
         }
@@ -170,46 +176,12 @@ const handleCallbackQuery = async (callbackQuery) => {
             const targetUserId = parseInt(data.replace('admin_details_', ''));
             await handleAdminDetails(targetUserId, userId);
         }
-        // Registration form callbacks
-        else if (data === 'select_social') {
-            const { getUser, setUser } = require('./database/users');
-            const user = await getUser(userId);
-            if (user) {
-                user.studentType = 'Social Science';
-                await setUser(userId, user);
-                await bot.answerCallbackQuery(callbackQuery.id, { text: '✅ Social Science selected' });
-                await showPaymentMethods(chatId, userId);
-            }
+        // Registration callbacks (student type + payment method)
+        else if (data === 'type_social' || data === 'type_natural') {
+            await handleStudentTypeCallback(callbackQuery);
         }
-        else if (data === 'select_natural') {
-            const { getUser, setUser } = require('./database/users');
-            const user = await getUser(userId);
-            if (user) {
-                user.studentType = 'Natural Science';
-                await setUser(userId, user);
-                await bot.answerCallbackQuery(callbackQuery.id, { text: '✅ Natural Science selected' });
-                await showPaymentMethods(chatId, userId);
-            }
-        }
-        else if (data === 'payment_telebirr') {
-            const { getUser, setUser } = require('./database/users');
-            const user = await getUser(userId);
-            if (user) {
-                user.paymentMethod = 'TeleBirr';
-                await setUser(userId, user);
-                await bot.answerCallbackQuery(callbackQuery.id, { text: '✅ TeleBirr selected' });
-                await showAccountDetails(chatId, 'TeleBirr');
-            }
-        }
-        else if (data === 'payment_cbe') {
-            const { getUser, setUser } = require('./database/users');
-            const user = await getUser(userId);
-            if (user) {
-                user.paymentMethod = 'CBE Birr';
-                await setUser(userId, user);
-                await bot.answerCallbackQuery(callbackQuery.id, { text: '✅ CBE Birr selected' });
-                await showAccountDetails(chatId, 'CBE Birr');
-            }
+        else if (data === 'pay_telebirr' || data === 'pay_cbe') {
+            await handlePaymentSelection(callbackQuery);
         }
 
         await bot.answerCallbackQuery(callbackQuery.id);
