@@ -365,7 +365,7 @@ const handleScreenshotUpload = async (msg) => {
     const user = await getUser(userId);
 
     if (user?.registrationStep === 'awaiting_screenshot' && 
-        (msg.photo || msg.document || msg.text === "📎 Upload Payment Screenshot")) {
+        (msg.photo || msg.document || msg.text === "")) {
         
         console.log(`📸 Screenshot received from user: ${userId}`);
         // Complete registration when screenshot is sent
@@ -435,3 +435,4 @@ module.exports = {
     handleNavigation,
     handleRegistrationCallback
 };
+
