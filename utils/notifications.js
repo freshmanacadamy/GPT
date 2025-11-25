@@ -52,7 +52,6 @@ const notifyAdminsNewRegistration = async (user) => {
     }
 };
 
-// Keep your existing functions for payment and withdrawal
 const notifyAdminsNewPayment = async (user, file_id) => {
     const adminId = getAdminId();
     
