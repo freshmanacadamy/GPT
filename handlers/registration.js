@@ -1,6 +1,7 @@
 const bot = require('../config/bot');
 const { getUser, setUser } = require('../database/users');
 const { REGISTRATION_FEE } = require('../config/environment');
+const { showMainMenu } = require('./menu'); // Import your existing main menu
 
 // Main registration handler
 const handleRegisterTutorial = async (msg) => {
@@ -191,7 +192,7 @@ const completeRegistration = async (chatId, userId) => {
 
     // Auto-redirect to main menu after 2 seconds
     setTimeout(async () => {
-        await showMainMenu(chatId);
+        await showMainMenu(chatId); // Use your existing main menu
     }, 2000);
 };
 
@@ -199,6 +200,11 @@ const completeRegistration = async (chatId, userId) => {
 const notifyAdmin = async (userId, user) => {
     const adminChatId = process.env.ADMIN_CHAT_ID; // Set this in environment
     
+    if (!adminChatId) {
+        console.log('⚠️ ADMIN_CHAT_ID not set, skipping admin notification');
+        return;
+    }
+
     const adminMessage = 
         `📋 *NEW REGISTRATION REQUEST*\n\n` +
         `👤 User: ${user.name}\n` +
@@ -209,25 +215,6 @@ const notifyAdmin = async (userId, user) => {
         `📅 Registered: ${new Date().toLocaleString()}`;
 
     await bot.sendMessage(adminChatId, adminMessage, { parse_mode: 'Markdown' });
-};
-
-// Show main menu
-const showMainMenu = async (chatId) => {
-    const message = `🏠 *Welcome to Main Menu*\n\nSelect an option:`;
-    
-    const options = {
-        reply_markup: {
-            keyboard: [
-                [{ text: "📚 Tutorials" }, { text: "🎓 Courses" }],
-                [{ text: "👤 Profile" }, { text: "🆕 Register" }],
-                [{ text: "ℹ️ Help" }, { text: "📞 Contact" }]
-            ],
-            resize_keyboard: true
-        },
-        parse_mode: 'Markdown'
-    };
-
-    await bot.sendMessage(chatId, message, options);
 };
 
 // Handle name input
@@ -373,13 +360,13 @@ const handleCancelRegistration = async (msg) => {
     await setUser(userId, userData);
 
     await bot.sendMessage(chatId, '❌ Registration cancelled.', { parse_mode: 'Markdown' });
-    await showMainMenu(chatId);
+    await showMainMenu(chatId); // Use your existing main menu
 };
 
 // Handle homepage navigation
 const handleHomepage = async (msg) => {
     const chatId = msg.chat.id;
-    await showMainMenu(chatId);
+    await showMainMenu(chatId); // Use your existing main menu
 };
 
 // Handle text messages for navigation
@@ -397,7 +384,7 @@ const handleNavigation = async (msg) => {
 };
 
 // Handle callback queries
-const handleCallbackQuery = async (callbackQuery) => {
+const handleRegistrationCallback = async (callbackQuery) => {
     const data = callbackQuery.data;
     
     if (data.startsWith('stream_')) {
@@ -416,5 +403,5 @@ module.exports = {
     handleContactShared,
     handleScreenshotUpload,
     handleNavigation,
-    handleCallbackQuery
+    handleRegistrationCallback
 };
