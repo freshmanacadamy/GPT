@@ -158,31 +158,40 @@ const handleCallbackQuery = async (callbackQuery) => {
     const chatId = message.chat.id;
 
     try {
-        console.log('🔵 Callback received:', data); // Debug log
+        console.log('🔵 Callback received:', data);
+        console.log('👤 From user ID:', userId);
+        console.log('💬 In chat ID:', chatId);
 
         // First try the new registration callback handler
+        console.log('🔄 Trying registration callback handler...');
         const handled = await handleRegistrationCallback(callbackQuery);
         if (handled) {
             console.log('✅ Registration callback handled');
+            await bot.answerCallbackQuery(callbackQuery.id);
             return;
         }
+
+        console.log('🔄 Registration callback not handled, trying admin callbacks...');
 
         // Admin callbacks
         if (data.startsWith('admin_approve_')) {
             const targetUserId = parseInt(data.replace('admin_approve_', ''));
+            console.log(`🔄 Processing admin approve for user: ${targetUserId}`);
             await handleAdminApprove(targetUserId, userId);
         }
         else if (data.startsWith('admin_reject_')) {
             const targetUserId = parseInt(data.replace('admin_reject_', ''));
+            console.log(`🔄 Processing admin reject for user: ${targetUserId}`);
             await handleAdminReject(targetUserId, userId);
         }
         else if (data.startsWith('admin_details_')) {
             const targetUserId = parseInt(data.replace('admin_details_', ''));
+            console.log(`🔄 Processing admin details for user: ${targetUserId}`);
             await handleAdminDetails(targetUserId, userId);
         }
         else {
-            // If no handler matched, answer the callback to remove loading state
-            await bot.answerCallbackQuery(callbackQuery.id);
+            console.log('❌ No handler found for callback:', data);
+            await bot.answerCallbackQuery(callbackQuery.id, { text: 'Unknown command' });
         }
 
     } catch (error) {
@@ -233,7 +242,7 @@ module.exports = async (req, res) => {
     if (req.method === 'POST') {
         try {
             const update = req.body;
-            console.log('📨 Webhook update:', JSON.stringify(update).substring(0, 200)); // Debug log
+            console.log('📨 Webhook update received');
 
             if (update.message) {
                 await handleMessage(update.message);
@@ -251,4 +260,4 @@ module.exports = async (req, res) => {
     return res.status(405).json({ error: 'Method not allowed' });
 };
 
-console.log('✅ Fixed Tutorial Registration Bot configured for Vercel!');
+console.log('✅ Tutorial Registration Bot configured for Vercel!');
