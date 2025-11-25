@@ -1,6 +1,8 @@
+// handlers/registration.js
 const bot = require('../config/bot');
 const { getUser, setUser } = require('../database/users');
 const { REGISTRATION_FEE } = require('../config/environment');
+const { showMainMenu } = require('./menu');
 
 // --------------------------------------------------------
 // REPLY BUTTONS (constant)
@@ -21,7 +23,22 @@ const startRegistration = async (msg) => {
     const chatId = msg.chat.id;
     const userId = msg.from.id;
 
-    const user = await getUser(userId) || {};
+    const user = (await getUser(userId)) || {};
+
+    if (user.blocked) {
+        await bot.sendMessage(chatId, '❌ You are blocked from using this bot.');
+        return;
+    }
+
+    if (user.isVerified) {
+        await bot.sendMessage(
+            chatId,
+            '✅ You are already registered and verified.',
+            { parse_mode: 'Markdown' }
+        );
+        await showMainMenu(chatId);
+        return;
+    }
 
     user.registrationStep = "enter_name";
     await setUser(userId, user);
@@ -33,6 +50,21 @@ const startRegistration = async (msg) => {
 };
 
 // --------------------------------------------------------
+// CANCEL REGISTRATION
+// --------------------------------------------------------
+const cancelRegistration = async (msg) => {
+    const chatId = msg.chat.id;
+    const userId = msg.from.id;
+
+    const user = (await getUser(userId)) || {};
+    user.registrationStep = "not_started";
+    await setUser(userId, user);
+
+    await bot.sendMessage(chatId, "❌ Registration cancelled.");
+    await showMainMenu(chatId);
+};
+
+// --------------------------------------------------------
 // STEP 2 — User enters name
 // --------------------------------------------------------
 const handleNameInput = async (msg) => {
@@ -41,10 +73,9 @@ const handleNameInput = async (msg) => {
     const text = msg.text;
 
     const user = await getUser(userId);
+    if (!user || user.registrationStep !== "enter_name") return;
 
-    if (user?.registrationStep !== "enter_name") return;
-
-    // Ignore special buttons
+    // Ignore control buttons here (handled in api.js)
     if (text === "❌ Cancel Registration" || text === "🏠 Home Page") return;
 
     user.name = text;
@@ -76,8 +107,7 @@ const handleContactShared = async (msg) => {
     const userId = msg.from.id;
 
     const user = await getUser(userId);
-    if (user?.registrationStep !== "enter_phone") return;
-
+    if (!user || user.registrationStep !== "enter_phone") return;
     if (!msg.contact) return;
 
     user.phone = msg.contact.phone_number;
@@ -103,7 +133,7 @@ const handleContactShared = async (msg) => {
 };
 
 // --------------------------------------------------------
-// STEP 4 — Animated Student Selection
+// STEP 4 — Animated Student Selection (callback_query)
 // --------------------------------------------------------
 const handleStudentTypeCallback = async (callbackQuery) => {
     const data = callbackQuery.data;
@@ -111,11 +141,11 @@ const handleStudentTypeCallback = async (callbackQuery) => {
     const messageId = callbackQuery.message.message_id;
     const userId = callbackQuery.from.id;
 
-    const user = await getUser(userId);
-
     if (!["type_social", "type_natural"].includes(data)) return;
 
-    // Set selection
+    const user = await getUser(userId);
+    if (!user) return;
+
     user.studentType = data === "type_social" ? "Social Science" : "Natural Science";
     user.registrationStep = "select_payment_method";
     await setUser(userId, user);
@@ -153,15 +183,17 @@ const handleStudentTypeCallback = async (callbackQuery) => {
 };
 
 // --------------------------------------------------------
-// STEP 5 — Payment Method Selection
+// STEP 5 — Payment Method Selection (callback_query)
 // --------------------------------------------------------
 const handlePaymentSelection = async (callbackQuery) => {
     const data = callbackQuery.data;
     const userId = callbackQuery.from.id;
     const chatId = callbackQuery.message.chat.id;
 
-    const user = await getUser(userId);
     if (!["pay_telebirr", "pay_cbe"].includes(data)) return;
+
+    const user = await getUser(userId);
+    if (!user) return;
 
     const method = data === "pay_telebirr" ? "TeleBirr" : "CBE Birr";
     user.paymentMethod = method;
@@ -196,14 +228,14 @@ const handlePaymentSelection = async (callbackQuery) => {
 };
 
 // --------------------------------------------------------
-// STEP 6 — Upload Screenshot
+// STEP 6 — Upload Screenshot (message with photo)
 // --------------------------------------------------------
 const handleScreenshotUpload = async (msg) => {
     const chatId = msg.chat.id;
     const userId = msg.from.id;
 
     const user = await getUser(userId);
-    if (user.registrationStep !== "upload_payment") return;
+    if (!user || user.registrationStep !== "upload_payment") return;
 
     if (!msg.photo) {
         return bot.sendMessage(chatId, "❌ Please upload a valid screenshot.");
@@ -218,28 +250,13 @@ const handleScreenshotUpload = async (msg) => {
         { parse_mode: "Markdown" }
     );
 
-    // AUTO redirect to home page
-    await sendHomePage(chatId);
-};
-
-// --------------------------------------------------------
-// HOME PAGE
-// --------------------------------------------------------
-const sendHomePage = async (chatId) => {
-    await bot.sendMessage(chatId, "🏠 *You are now at the Home Page*", {
-        parse_mode: "Markdown",
-        reply_markup: {
-            keyboard: [
-                [{ text: "🧾 Registration" }],
-                [{ text: "ℹ️ Help" }]
-            ],
-            resize_keyboard: true
-        }
-    });
+    // AUTO redirect to main menu
+    await showMainMenu(chatId);
 };
 
 module.exports = {
     startRegistration,
+    cancelRegistration,
     handleNameInput,
     handleContactShared,
     handleStudentTypeCallback,
