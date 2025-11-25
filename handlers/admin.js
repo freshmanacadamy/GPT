@@ -30,7 +30,7 @@ const options = {
                 [{ text: '🔧 Maintenance Mode' }, { text: '✉️ Message Student' }],
                  [{ text: '📚 Upload Tutorial' }, { text: '📚 Manage Tutorials' }],
                 [{ text: '📢 Broadcast Message' }, { text: '⚙️ Bot Settings' }]
-                [{ text: "📚 Tutorials" }],
+                [{ text: '📚 Tutorials' }],
             ],
             resize_keyboard: true
         }
@@ -149,6 +149,7 @@ module.exports = {
     handleAdminDetails,
     handleAdminStats
 };
+
 
 
 
