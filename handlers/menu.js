@@ -7,7 +7,7 @@ const showMainMenu = async (chatId) => {
             keyboard: [
                 [{ text: '📚 Register for Tutorial' }],
                  [{ text: '💰 Pay Tutorial Fee' }, { text: '🎁 Invite & Earn' }],
-                [{ text:  }, { text: ],
+                [{ text: '' }, { text: ''}],
                 [{ text: '📈 Leaderboard' }, { text: '❓ Help' }],
                 [{ text: '📌 Rules' }, { text: '👤 My Profile' }]
             ],
@@ -26,5 +26,6 @@ const showMainMenu = async (chatId) => {
 };
 
 module.exports = { showMainMenu };
+
 
 
