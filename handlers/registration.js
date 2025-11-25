@@ -1,7 +1,7 @@
 const bot = require('../config/bot');
 const { getUser, setUser } = require('../database/users');
 const { REGISTRATION_FEE } = require('../config/environment');
-const { showMainMenu } = require('./menu'); // Import your existing main menu
+const { showMainMenu } = require('./menu');
 
 // Main registration handler
 const handleRegisterTutorial = async (msg) => {
@@ -120,8 +120,8 @@ const askForPaymentMethod = async (chatId, stream) => {
     await bot.sendMessage(chatId, message, options);
 };
 
-// Step 5: Show account details and complete registration immediately
-const showAccountDetails = async (chatId, paymentMethod) => {
+// Step 5: Show account details and ask for screenshot
+const showAccountDetails = async (chatId, paymentMethod, userId) => {
     const accountDetails = {
         'telebirr': { 
             number: '+251911234567', 
@@ -148,15 +148,30 @@ const showAccountDetails = async (chatId, paymentMethod) => {
         `3. Take a clear screenshot of transaction\n\n` +
         `📸 *Send your payment screenshot now:*`;
 
-    await bot.sendMessage(chatId, message, { parse_mode: 'Markdown' });
-    
-    // Immediately show success message after payment method selection
-    await completeRegistration(chatId);
+    const options = {
+        reply_markup: {
+            keyboard: [
+                [{ text: "📎 Upload Payment Screenshot" }],
+                [{ text: "❌ Cancel Registration" }, { text: "🏠 Homepage" }]
+            ],
+            resize_keyboard: true
+        },
+        parse_mode: 'Markdown'
+    };
+
+    await bot.sendMessage(chatId, message, options);
 };
 
-// Handle registration completion
-const completeRegistration = async (chatId) => {
-    // Send success message immediately
+// Handle registration completion (ONLY after screenshot)
+const completeRegistration = async (chatId, userId) => {
+    const user = await getUser(userId);
+    
+    // Update user status
+    user.registrationStep = 'completed';
+    user.paymentStatus = 'pending_approval';
+    await setUser(userId, user);
+
+    // Send success message
     const successMessage = 
         `🎉 *REGISTRATION SUCCESSFUL!*\n\n` +
         `✅ Your registration is complete\n` +
@@ -166,15 +181,18 @@ const completeRegistration = async (chatId) => {
 
     await bot.sendMessage(chatId, successMessage, { parse_mode: 'Markdown' });
 
+    // Send approval notification to admin
+    await notifyAdmin(userId, user);
+
     // Auto-redirect to main menu after 2 seconds
     setTimeout(async () => {
-        await showMainMenu(chatId); // Use your existing main menu
+        await showMainMenu(chatId);
     }, 2000);
 };
 
 // Notify admin about new registration
 const notifyAdmin = async (userId, user) => {
-    const adminChatId = process.env.ADMIN_CHAT_ID; // Set this in environment
+    const adminChatId = process.env.ADMIN_CHAT_ID;
     
     if (!adminChatId) {
         console.log('⚠️ ADMIN_CHAT_ID not set, skipping admin notification');
@@ -224,6 +242,13 @@ const handleContactShared = async (msg) => {
         user.registrationStep = 'awaiting_stream';
         await setUser(userId, user);
 
+        // Remove share contact buttons and show stream selection
+        await bot.sendMessage(chatId, 
+            `✅ Phone number saved: *${msg.contact.phone_number}*\n\n` +
+            `Now select your stream:`,
+            { parse_mode: 'Markdown' }
+        );
+        
         await askForStream(chatId, msg.contact.phone_number);
     }
 };
@@ -276,7 +301,7 @@ const handlePaymentMethodSelection = async (callbackQuery) => {
 
     if (user && !user.isVerified) {
         user.paymentMethod = paymentMethod;
-        user.registrationStep = 'completed';
+        user.registrationStep = 'awaiting_screenshot';
         await setUser(userId, user);
 
         // Update inline buttons to show selection
@@ -303,11 +328,22 @@ const handlePaymentMethodSelection = async (callbackQuery) => {
 
         await bot.answerCallbackQuery(callbackQuery.id);
         
-        // Show account details and complete registration immediately
-        await showAccountDetails(chatId, paymentMethod);
+        // Show account details and ask for screenshot (DO NOT complete registration yet)
+        await showAccountDetails(chatId, paymentMethod, userId);
+    }
+};
+
+// Handle screenshot upload
+const handleScreenshotUpload = async (msg) => {
+    const chatId = msg.chat.id;
+    const userId = msg.from.id;
+    const user = await getUser(userId);
+
+    if (user?.registrationStep === 'awaiting_screenshot' && 
+        (msg.photo || msg.document || msg.text === "📎 Upload Payment Screenshot")) {
         
-        // Send admin notification
-        await notifyAdmin(userId, user);
+        // Complete registration ONLY when screenshot is sent
+        await completeRegistration(chatId, userId);
     }
 };
 
@@ -328,13 +364,13 @@ const handleCancelRegistration = async (msg) => {
     await setUser(userId, userData);
 
     await bot.sendMessage(chatId, '❌ Registration cancelled.', { parse_mode: 'Markdown' });
-    await showMainMenu(chatId); // Use your existing main menu
+    await showMainMenu(chatId);
 };
 
 // Handle homepage navigation
 const handleHomepage = async (msg) => {
     const chatId = msg.chat.id;
-    await showMainMenu(chatId); // Use your existing main menu
+    await showMainMenu(chatId);
 };
 
 // Handle text messages for navigation
@@ -369,6 +405,7 @@ module.exports = {
     handleRegisterTutorial,
     handleNameInput,
     handleContactShared,
+    handleScreenshotUpload,
     handleNavigation,
     handleRegistrationCallback
 };
