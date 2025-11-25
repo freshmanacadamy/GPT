@@ -2,7 +2,7 @@ const bot = require('../config/bot');
 const { getUser, setUser } = require('../database/users');
 const { REGISTRATION_FEE } = require('../config/environment');
 const { showMainMenu } = require('./menu');
-const { notifyAdminsNewRegistration } = require('../utils/notifications');
+const { notifyAdminsNewRegistration, notifyAdminsNewPayment } = require('../utils/notifications');
 
 // Main registration handler
 const handleRegisterTutorial = async (msg) => {
@@ -164,7 +164,7 @@ const showAccountDetails = async (chatId, paymentMethod, userId) => {
 };
 
 // Handle registration completion (ONLY after screenshot)
-const completeRegistration = async (chatId, userId) => {
+const completeRegistration = async (chatId, userId, fileId = null) => {
     const user = await getUser(userId);
     
     if (!user) {
@@ -178,9 +178,9 @@ const completeRegistration = async (chatId, userId) => {
     await setUser(userId, user);
 
     console.log('🔄 Completing registration for user:', userId);
-    console.log('📤 Sending admin notification...');
+    console.log('📤 Sending admin notifications...');
 
-    // Send success message
+    // Send success message to user
     const successMessage = 
         `🎉 *REGISTRATION SUCCESSFUL!*\n\n` +
         `✅ Your registration is complete\n` +
@@ -190,8 +190,16 @@ const completeRegistration = async (chatId, userId) => {
 
     await bot.sendMessage(chatId, successMessage, { parse_mode: 'Markdown' });
 
-    // Send approval notification to admin
-    await notifyAdminsNewRegistration(user);
+    // Send notifications to admin
+    if (fileId) {
+        // If screenshot was provided, send it to admin
+        console.log('📸 Sending screenshot to admin');
+        await notifyAdminsNewPayment(user, fileId);
+    } else {
+        // If no screenshot, just send registration notification
+        console.log('📋 Sending registration notification to admin');
+        await notifyAdminsNewRegistration(user);
+    }
 
     // Auto-redirect to main menu after 2 seconds
     setTimeout(async () => {
@@ -327,12 +335,36 @@ const handleScreenshotUpload = async (msg) => {
     const userId = msg.from.id;
     const user = await getUser(userId);
 
-    if (user?.registrationStep === 'awaiting_screenshot' && 
-        (msg.photo || msg.document || msg.text === "📎 Upload Payment Screenshot")) {
+    if (user?.registrationStep === 'awaiting_screenshot') {
+        let fileId = null;
         
-        console.log(`📸 Screenshot received from user: ${userId}`);
-        // Complete registration when screenshot is sent
-        await completeRegistration(chatId, userId);
+        // Get file ID from photo or document
+        if (msg.photo) {
+            // Get the highest quality photo
+            fileId = msg.photo[msg.photo.length - 1].file_id;
+            console.log(`📸 Photo received from user: ${userId}, file_id: ${fileId}`);
+        } else if (msg.document) {
+            fileId = msg.document.file_id;
+            console.log(`📄 Document received from user: ${userId}, file_id: ${fileId}`);
+        } else if (msg.text === "📎 Upload Payment Screenshot") {
+            console.log(`📎 Upload button clicked by user: ${userId}`);
+            // User clicked the upload button but didn't send file yet
+            await bot.sendMessage(chatId, 
+                'Please send your payment screenshot as a photo or document.',
+                { parse_mode: 'Markdown' }
+            );
+            return;
+        }
+
+        if (fileId) {
+            // Complete registration with screenshot
+            await completeRegistration(chatId, userId, fileId);
+        } else {
+            await bot.sendMessage(chatId, 
+                'Please send a valid screenshot (photo or document).',
+                { parse_mode: 'Markdown' }
+            );
+        }
     }
 };
 
