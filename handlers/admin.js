@@ -6,6 +6,7 @@ const { ADMIN_IDS, REGISTRATION_FEE, REFERRAL_REWARD, MIN_REFERRALS_FOR_WITHDRAW
 const { getFirebaseTimestamp } = require('../utils/helpers');
 const MessageHelper = require('../utils/messageHelper');
 const SettingsHandler = require('./settings');
+const StudentManagement = require('./studentManagement'); // Add this import
 
 const handleAdminPanel = async (msg) => {
     const chatId = msg.chat.id;
@@ -21,9 +22,15 @@ const handleAdminPanel = async (msg) => {
     const pendingPayments = await getPendingPayments();
     const pendingWithdrawals = await getPendingWithdrawals();
 
+    // Use the updated admin buttons that include Student Management
     const options = {
         reply_markup: {
-            keyboard: MessageHelper.getAdminButtons(),
+            keyboard: [
+                [{ text: '👥 Manage Students' }, { text: '💰 Review Payments' }],
+                [{ text: '⚙️ Bot Settings' }, { text: '📝 Message Settings' }],
+                [{ text: '📊 Student Stats' }, { text: '📢 Broadcast' }],
+                [{ text: '🔙 Back to Menu' }]
+            ],
             resize_keyboard: true
         }
     };
@@ -143,10 +150,24 @@ const handleAdminStats = async (msg) => {
     await bot.sendMessage(chatId, statsMessage, { parse_mode: 'Markdown' });
 };
 
+// Add this function to handle the Manage Students button
+const handleManageStudents = async (msg) => {
+    const chatId = msg.chat.id;
+    const userId = msg.from.id;
+
+    if (!ADMIN_IDS.includes(userId)) {
+        await bot.sendMessage(chatId, '❌ You are not authorized.');
+        return;
+    }
+
+    await StudentManagement.showStudentManagement(msg);
+};
+
 module.exports = {
     handleAdminPanel,
     handleAdminApprove,
     handleAdminReject,
     handleAdminDetails,
-    handleAdminStats
+    handleAdminStats,
+    handleManageStudents // Add this export
 };
