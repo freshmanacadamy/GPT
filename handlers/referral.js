@@ -34,12 +34,11 @@ const handleInviteEarn = async (msg) => {
             `3. You get ${REFERRAL_REWARD} ETB when they complete registration\n` +
             `4. Withdraw after ${MIN_REFERRALS_FOR_WITHDRAW} referrals`;
 
-        // Send message with clickable button
+        // Simple clickable button
         const options = {
             reply_markup: {
                 inline_keyboard: [
-                    [{ text: '🔗 Click to Share Referral Link', url: referralLink }],
-                    [{ text: '📤 Share with Friends', switch_inline_query: `Join our tutorial bot and earn money! ${referralLink}` }]
+                    [{ text: '🔗 Click to Open Referral Link', url: referralLink }]
                 ]
             },
             parse_mode: 'Markdown'
