@@ -22,10 +22,17 @@ const DEFAULT_CONFIG = {
     'registration_disabled_message': '❌ Registration is temporarily closed.',
     'referral_disabled_message': '❌ Referral program is currently paused.',
     'withdrawal_disabled_message': '❌ Withdrawals are temporarily suspended.',
+    'tutorials_disabled_message': '❌ Tutorial access is currently unavailable.',
     
     // Welcome Messages
     'welcome_message': '🎯 *COMPLETE TUTORIAL REGISTRATION BOT*\\n\\n📚 Register for comprehensive tutorials\\n💰 Registration fee: {fee} ETB\\n🎁 Earn {reward} ETB per referral\\n\\nChoose an option below:',
     'start_message': '🎯 *Welcome to Tutorial Registration Bot!*\\n\\n📚 Register for our comprehensive tutorials\\n💰 Registration fee: {fee} ETB\\n🎁 Earn {reward} ETB per referral\\n\\nStart your registration journey!',
+    
+    // Registration Messages
+    'reg_start': '👤 *ENTER YOUR FULL NAME*\\n\\nPlease type your full name:',
+    'reg_name_saved': '✅ Name saved: *{name}*\\n\\n📱 *SHARE YOUR PHONE NUMBER*\\n\\nPlease share your phone number using the button below:',
+    'reg_phone_saved': '✅ Phone saved: *{phone}*\\n\\n🎓 *SELECT YOUR STREAM*\\n\\nChoose your field of study:',
+    'reg_success': '🎉 *REGISTRATION SUCCESSFUL!*\\n\\n✅ Your registration is complete\\n✅ Payment verification pending\\n⏳ Please wait for admin approval\\n\\n_You will be notified once approved._',
     
     // Button Texts
     'btn_register': '📚 Register for Tutorial',
@@ -33,7 +40,24 @@ const DEFAULT_CONFIG = {
     'btn_invite': '🎁 Invite & Earn',
     'btn_withdraw': '💰 Withdraw Rewards',
     'btn_help': '❓ Help',
-    // ... more button texts
+    'btn_rules': '📌 Rules',
+    'btn_leaderboard': '📈 Leaderboard',
+    'btn_pay_fee': '💰 Pay Tutorial Fee',
+    'btn_confirm_reg': '✅ Confirm Registration',
+    'btn_cancel_reg': '❌ Cancel Registration',
+    'btn_homepage': '🏠 Homepage',
+    'btn_share_phone': '📲 Share My Phone Number',
+    'btn_upload_screenshot': '📎 Upload Payment Screenshot',
+    'btn_change_payment': '💳 Change Payment Method',
+    'btn_my_referrals': '📊 My Referrals',
+    'btn_admin_panel': '🛠️ Admin Panel',
+    'btn_manage_students': '👥 Manage Students',
+    'btn_review_payments': '💰 Review Payments',
+    'btn_student_stats': '📊 Student Stats',
+    'btn_broadcast': '📢 Broadcast Message',
+    'btn_bot_settings': '⚙️ Bot Settings',
+    'btn_message_settings': '📝 Message Settings',
+    'btn_feature_toggle': '🔄 Feature Toggle'
 };
 
 class ConfigService {
@@ -58,7 +82,7 @@ class ConfigService {
             await db.collection(CONFIG_COLLECTION).doc(key).set({
                 value: value,
                 updatedAt: new Date(),
-                updatedBy: 'admin' // In real implementation, track admin ID
+                updatedBy: 'admin'
             });
             return true;
         } catch (error) {
