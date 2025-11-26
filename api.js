@@ -20,6 +20,7 @@ process.on('uncaughtException', (error) => {
 // Import configurations
 const bot = require('./config/bot');
 const { showMainMenu } = require('./handlers/menu');
+const { BUTTON_TEXTS } = require('./config/environment');
 
 // Import NEW registration handlers
 const { 
@@ -102,83 +103,97 @@ const handleMessage = async (msg) => {
                     await showMainMenu(chatId);
             }
         } else {
-            // Handle button clicks and form interactions
-            switch (text) {
-                case '📚 Register for Tutorial':
-                case '🆕 Register':
-                    await handleRegisterTutorial(msg);
-                    break;
-                case '👤 My Profile':
-                    await handleMyProfile(msg);
-                    break;
-                case '🎁 Invite & Earn':
-                    await handleInviteEarn(msg);
-                    break;
-                case '📈 Leaderboard':
-                    await handleLeaderboard(msg);
-                    break;
-                case '❓ Help':
-                    await handleHelp(msg);
-                    break;
-                case '📌 Rules':
-                    await handleRules(msg);
-                    break;
-                case '💰 Pay Tutorial Fee':
-                    await handlePayFee(msg);
-                    break;
-                case '📤 Upload Payment Screenshot':
-                case '📎 Upload Payment Screenshot':
-                    await handleScreenshotUpload(msg);
-                    break;
-                case '💰 Withdraw Rewards':
-                    await handleWithdrawRewards(msg);
-                    break;
-                case '💳 Change Payment Method':
-                    await handleChangePaymentMethod(msg);
-                    break;
-                case '📊 My Referrals':
-                    await handleMyReferrals(msg);
-                    break;
-                case '🔙 Back to Menu':
-                    await showMainMenu(chatId);
-                    break;
-                case '🛠️ Admin Panel':
-                    await handleAdminPanel(msg);
-                    break;
-                case '⚙️ Bot Settings':
-                    await SettingsHandler.showSettingsDashboard(msg);
-                    break;
-                case '💰 Financial Settings':
-                    await SettingsHandler.showFinancialSettings(msg);
-                    break;
-                case '⚙️ Feature Toggles':
-                    await SettingsHandler.showFeatureToggles(msg);
-                    break;
-                case '📝 Message Settings':
-                    await SettingsHandler.showMessageManagement(msg);
-                    break;
-                case '🔧 Button Texts':
-                    await SettingsHandler.showButtonManagement(msg);
-                    break;
-                case '🔄 Reset Settings':
-                    await SettingsHandler.handleResetSettings(msg);
-                    break;
-                case '📊 View All Config':
-                    await SettingsHandler.handleViewAllConfig(msg);
-                    break;
-                case '🔙 Back to Admin Panel':
-                    await handleAdminPanel(msg);
-                    break;
-                default:
-                    // Handle name input and other text
-                    await handleNameInput(msg);
-            }
+            // Handle button clicks using DYNAMIC button texts
+            await handleButtonClick(msg, text);
         }
     } catch (error) {
         console.error('Error handling message:', error);
         await bot.sendMessage(chatId, '❌ An error occurred. Please try again.');
     }
 };
+
+// Dynamic button click handler
+async function handleButtonClick(msg, text) {
+    const chatId = msg.chat.id;
+    
+    // Get current button texts from environment (which loads from database)
+    const buttons = BUTTON_TEXTS;
+
+    // Handle main menu buttons
+    switch (text) {
+        case buttons.REGISTER:
+            await handleRegisterTutorial(msg);
+            break;
+        case buttons.PROFILE:
+            await handleMyProfile(msg);
+            break;
+        case buttons.INVITE:
+            await handleInviteEarn(msg);
+            break;
+        case buttons.LEADERBOARD:
+            await handleLeaderboard(msg);
+            break;
+        case buttons.HELP:
+            await handleHelp(msg);
+            break;
+        case buttons.RULES:
+            await handleRules(msg);
+            break;
+        case buttons.PAY_FEE:
+            await handlePayFee(msg);
+            break;
+        case buttons.WITHDRAW:
+            await handleWithdrawRewards(msg);
+            break;
+        case buttons.CHANGE_PAYMENT:
+            await handleChangePaymentMethod(msg);
+            break;
+        case buttons.MY_REFERRALS:
+            await handleMyReferrals(msg);
+            break;
+            
+        // Admin buttons
+        case buttons.ADMIN_PANEL:
+            await handleAdminPanel(msg);
+            break;
+        case buttons.BOT_SETTINGS:
+            await SettingsHandler.showSettingsDashboard(msg);
+            break;
+        case '💰 Financial Settings':
+            await SettingsHandler.showFinancialSettings(msg);
+            break;
+        case '⚙️ Feature Toggles':
+            await SettingsHandler.showFeatureToggles(msg);
+            break;
+        case '📝 Message Management':
+            await SettingsHandler.showMessageManagement(msg);
+            break;
+        case '🔧 Button Texts':
+            await SettingsHandler.showButtonManagement(msg);
+            break;
+        case '🔄 Reset Settings':
+            await SettingsHandler.handleResetSettings(msg);
+            break;
+        case '📊 View All Config':
+            await SettingsHandler.handleViewAllConfig(msg);
+            break;
+            
+        // Navigation buttons (keep these static for now)
+        case '🔙 Back to Menu':
+            await showMainMenu(chatId);
+            break;
+        case '🔙 Back to Admin Panel':
+            await handleAdminPanel(msg);
+            break;
+        case '📤 Upload Payment Screenshot':
+        case '📎 Upload Payment Screenshot':
+            await handleScreenshotUpload(msg);
+            break;
+        default:
+            // Handle name input and other text
+            await handleNameInput(msg);
+    }
+}
 
 // Handle editing input from settings
 async function handleEditingInput(msg, editingState) {
@@ -238,19 +253,14 @@ const handleCallbackQuery = async (callbackQuery) => {
 
     try {
         console.log('🔵 Callback received:', data);
-        console.log('👤 From user ID:', userId);
-        console.log('💬 In chat ID:', chatId);
 
         // First try the new registration callback handler
-        console.log('🔄 Trying registration callback handler...');
         const handled = await handleRegistrationCallback(callbackQuery);
         if (handled) {
             console.log('✅ Registration callback handled');
             await bot.answerCallbackQuery(callbackQuery.id);
             return;
         }
-
-        console.log('🔄 Registration callback not handled, trying settings callbacks...');
 
         // Settings callbacks
         if (data.startsWith('edit_financial:')) {
@@ -284,29 +294,30 @@ const handleCallbackQuery = async (callbackQuery) => {
             await bot.answerCallbackQuery(callbackQuery.id, { text: 'Editing cancelled' });
             await SettingsHandler.showSettingsDashboard(callbackQuery.message);
         }
+        // RESET FUNCTIONALITY - FIXED
         else if (data === 'reset_all_settings') {
-            const success = await require('../database/config').ConfigService.resetToDefault();
-            if (success) {
-                await bot.answerCallbackQuery(callbackQuery.id, { text: '✅ All settings reset to defaults' });
-                await SettingsHandler.showSettingsDashboard(callbackQuery.message);
-            } else {
-                await bot.answerCallbackQuery(callbackQuery.id, { text: '❌ Failed to reset settings' });
-            }
+            await SettingsHandler.handleResetAction(callbackQuery, 'all');
+        }
+        else if (data === 'reset_financial') {
+            await SettingsHandler.handleResetAction(callbackQuery, 'financial');
+        }
+        else if (data === 'reset_features') {
+            await SettingsHandler.handleResetAction(callbackQuery, 'features');
+        }
+        else if (data === 'reset_messages') {
+            await SettingsHandler.handleResetAction(callbackQuery, 'messages');
         }
         // Admin callbacks
         else if (data.startsWith('admin_approve_')) {
             const targetUserId = parseInt(data.replace('admin_approve_', ''));
-            console.log(`🔄 Processing admin approve for user: ${targetUserId}`);
             await handleAdminApprove(targetUserId, userId);
         }
         else if (data.startsWith('admin_reject_')) {
             const targetUserId = parseInt(data.replace('admin_reject_', ''));
-            console.log(`🔄 Processing admin reject for user: ${targetUserId}`);
             await handleAdminReject(targetUserId, userId);
         }
         else if (data.startsWith('admin_details_')) {
             const targetUserId = parseInt(data.replace('admin_details_', ''));
-            console.log(`🔄 Processing admin details for user: ${targetUserId}`);
             await handleAdminDetails(targetUserId, userId);
         }
         else {
