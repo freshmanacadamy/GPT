@@ -2,8 +2,10 @@ const bot = require('../config/bot');
 const { getAllUsers, getVerifiedUsers, setUser, getUser } = require('../database/users');
 const { getPendingPayments } = require('../database/payments');
 const { getPendingWithdrawals } = require('../database/withdrawals');
-const { ADMIN_IDS } = require('../config/environment');
+const { ADMIN_IDS, REGISTRATION_FEE, REFERRAL_REWARD, MIN_REFERRALS_FOR_WITHDRAW, MIN_WITHDRAWAL_AMOUNT } = require('../config/environment');
 const { getFirebaseTimestamp } = require('../utils/helpers');
+const MessageHelper = require('../utils/messageHelper');
+const SettingsHandler = require('./settings');
 
 const handleAdminPanel = async (msg) => {
     const chatId = msg.chat.id;
@@ -19,19 +21,9 @@ const handleAdminPanel = async (msg) => {
     const pendingPayments = await getPendingPayments();
     const pendingWithdrawals = await getPendingWithdrawals();
 
-    
-    // In handleAdminPanel function, add tutorial options:
-const options = {
+    const options = {
         reply_markup: {
-            keyboard: [
-                [{ text: '👥 Manage Students' }, { text: '💰 Review Payments' }],
-                [{ text: '📊 Student Stats' }, { text: '❌ Block Student' }],
-                [{ text: '📈 Registration Trends' }, { text: '👤 Add Admin' }],
-                [{ text: '🔧 Maintenance Mode' }, { text: '✉️ Message Student' }],
-                 [{ text: '📚 Upload Tutorial' }, { text: '📚 Manage Tutorials' }],
-                [{ text: '📢 Broadcast Message' }, { text: '⚙️ Bot Settings' }],
-                [{ text: '📚 Tutorials' }]
-            ],
+            keyboard: MessageHelper.getAdminButtons(),
             resize_keyboard: true
         }
     };
@@ -44,11 +36,20 @@ const options = {
         `• Pending Payments: ${pendingPayments.length}\n` +
         `• Pending Withdrawals: ${pendingWithdrawals.length}\n` +
         `• Total Referrals: ${Object.values(allUsers).reduce((sum, u) => sum + (u.referralCount || 0), 0)}\n\n` +
+        `💰 *Current Settings:*\n` +
+        `• Registration Fee: ${REGISTRATION_FEE} ETB\n` +
+        `• Referral Reward: ${REFERRAL_REWARD} ETB\n` +
+        `• Min Referrals: ${MIN_REFERRALS_FOR_WITHDRAW}\n` +
+        `• Min Withdrawal: ${MIN_WITHDRAWAL_AMOUNT} ETB\n\n` +
         `Choose an admin function:`;
 
     await bot.sendMessage(chatId, adminMessage, { parse_mode: 'Markdown', ...options });
 };
 
+// Add the new admin commands to handleAdminPanel
+// Update the admin panel keyboard in the getAdminButtons function
+
+// ... rest of your existing admin functions remain the same
 const handleAdminApprove = async (targetUserId, adminId) => {
     const user = await getUser(targetUserId);
     if (user) {
@@ -61,7 +62,7 @@ const handleAdminApprove = async (targetUserId, adminId) => {
                 `🎉 *REGISTRATION APPROVED!*\n\n` +
                 `✅ Your registration has been approved!\n\n` +
                 `📚 You can now access tutorials.\n` +
-                `💰 Registration fee: ${process.env.REGISTRATION_FEE || 500} ETB`,
+                `💰 Registration fee: ${REGISTRATION_FEE} ETB`,
                 { parse_mode: 'Markdown' }
             );
         } catch (error) {
@@ -149,9 +150,3 @@ module.exports = {
     handleAdminDetails,
     handleAdminStats
 };
-
-
-
-
-
-
