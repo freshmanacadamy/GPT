@@ -29,19 +29,16 @@ const handleInviteEarn = async (msg) => {
             `• Can Withdraw: ${canWithdraw ? '✅ Yes' : '❌ No'}\n\n` +
             `💰 *Earn ${REFERRAL_REWARD} ETB for each successful referral!*\n\n` +
             `📝 *How it works:*\n` +
-            `1. Click "Share with Friends" below\n` +
-            `2. Choose where to share your link\n` +
-            `3. You get ${REFERRAL_REWARD} ETB when friends register\n` +
+            `1. Click the button below to share\n` +
+            `2. Friends register using your link\n` +
+            `3. You get ${REFERRAL_REWARD} ETB when they complete registration\n` +
             `4. Withdraw after ${MIN_REFERRALS_FOR_WITHDRAW} referrals`;
 
-        // Share button that opens Telegram share dialog
+        // ADD THIS BUTTON SECTION TO YOUR WORKING CODE:
         const options = {
             reply_markup: {
                 inline_keyboard: [
-                    [{ 
-                        text: '📤 Share with Friends', 
-                        switch_inline_query: `Join ${BOT_USERNAME} and earn money! Use my referral link: ${referralLink}`
-                    }]
+                    [{ text: '🔗 Click to Share Referral Link', url: referralLink }]
                 ]
             },
             parse_mode: 'Markdown'
@@ -57,6 +54,7 @@ const handleInviteEarn = async (msg) => {
     }
 };
 
+// KEEP ALL YOUR OTHER FUNCTIONS EXACTLY THE SAME:
 const handleLeaderboard = async (msg) => {
     try {
         const chatId = msg.chat.id;
@@ -201,12 +199,4 @@ module.exports = {
     handleLeaderboard,
     handleMyReferrals,
     handleReferralStart
-};```
-
-**Key Feature:**
-- **📤 Share with Friends** button opens Telegram's native share dialog
-- Users can choose to share to contacts, groups, or channels
-- Pre-filled message: "Join @freshman_academy_jmubot and earn money! Use my referral link: [link]"
-- Much better for viral sharing than just opening the bot
-
-**Deploy this and test the share functionality!** 🚀
+};
