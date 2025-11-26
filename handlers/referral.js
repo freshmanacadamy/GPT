@@ -29,12 +29,22 @@ const handleInviteEarn = async (msg) => {
             `• Can Withdraw: ${canWithdraw ? '✅ Yes' : '❌ No'}\n\n` +
             `💰 *Earn ${REFERRAL_REWARD} ETB for each successful referral!*\n\n` +
             `📝 *How it works:*\n` +
-            `1. Share your link above\n` +
+            `1. Click the button below to share\n` +
             `2. Friends register using your link\n` +
             `3. You get ${REFERRAL_REWARD} ETB when they complete registration\n` +
             `4. Withdraw after ${MIN_REFERRALS_FOR_WITHDRAW} referrals`;
 
-        await bot.sendMessage(chatId, inviteMessage, { parse_mode: 'Markdown' });
+        // ADD THIS BUTTON SECTION TO YOUR WORKING CODE:
+        const options = {
+            reply_markup: {
+                inline_keyboard: [
+                    [{ text: '🔗 Click to Share Referral Link', url: referralLink }]
+                ]
+            },
+            parse_mode: 'Markdown'
+        };
+
+        await bot.sendMessage(chatId, inviteMessage, options);
         
         console.log('✅ Invite & Earn message sent to user:', userId);
         
@@ -44,6 +54,7 @@ const handleInviteEarn = async (msg) => {
     }
 };
 
+// KEEP ALL YOUR OTHER FUNCTIONS EXACTLY THE SAME:
 const handleLeaderboard = async (msg) => {
     try {
         const chatId = msg.chat.id;
