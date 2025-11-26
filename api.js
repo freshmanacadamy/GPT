@@ -22,7 +22,7 @@ const bot = require('./config/bot');
 const { showMainMenu } = require('./handlers/menu');
 const { BUTTON_TEXTS } = require('./config/environment');
 
-// Import NEW registration handlers
+// Import handlers
 const { 
     handleRegisterTutorial, 
     handleNameInput, 
@@ -38,6 +38,7 @@ const { handleMyProfile, handleWithdrawRewards, handleChangePaymentMethod, handl
 const { handleAdminPanel, handleAdminApprove, handleAdminReject, handleAdminDetails, handleAdminStats } = require('./handlers/admin');
 const { handleHelp, handleRules } = require('./handlers/help');
 const SettingsHandler = require('./handlers/settings');
+const StudentManagement = require('./handlers/studentManagement');
 
 // Import database functions for health check
 const { getAllUsers, getVerifiedUsers } = require('./database/users');
@@ -53,10 +54,23 @@ const handleMessage = async (msg) => {
     if (!text && !msg.contact && !msg.photo && !msg.document) return;
 
     try {
-        // Check if user is in editing mode
+        // Check if user is in editing mode (settings)
         const editingState = SettingsHandler.getEditingState(userId);
         if (editingState) {
             await handleEditingInput(msg, editingState);
+            return;
+        }
+
+        // Check if user is in date filter mode (student management)
+        const dateState = StudentManagement.dateFilterState;
+        if (dateState && dateState.get(chatId)) {
+            await StudentManagement.handleDateInput(msg, text);
+            return;
+        }
+
+        // Check if user is in delete confirmation mode
+        if (text === 'CONFIRM DELETE' || text === '❌ Cancel Delete') {
+            await StudentManagement.handleDeleteConfirmation(msg, text);
             return;
         }
 
@@ -122,41 +136,54 @@ async function handleButtonClick(msg, text) {
     // Handle main menu buttons
     switch (text) {
         case buttons.REGISTER:
+        case '📚 Register for Tutorial':
+        case 'Miki':  // Handle any custom button text
             await handleRegisterTutorial(msg);
             break;
         case buttons.PROFILE:
+        case '👤 My Profile':
             await handleMyProfile(msg);
             break;
         case buttons.INVITE:
+        case '🎁 Invite & Earn':
             await handleInviteEarn(msg);
             break;
         case buttons.LEADERBOARD:
+        case '📈 Leaderboard':
             await handleLeaderboard(msg);
             break;
         case buttons.HELP:
+        case '❓ Help':
             await handleHelp(msg);
             break;
         case buttons.RULES:
+        case '📌 Rules':
             await handleRules(msg);
             break;
         case buttons.PAY_FEE:
+        case '💰 Pay Tutorial Fee':
             await handlePayFee(msg);
             break;
         case buttons.WITHDRAW:
+        case '💰 Withdraw Rewards':
             await handleWithdrawRewards(msg);
             break;
         case buttons.CHANGE_PAYMENT:
+        case '💳 Change Payment Method':
             await handleChangePaymentMethod(msg);
             break;
         case buttons.MY_REFERRALS:
+        case '📊 My Referrals':
             await handleMyReferrals(msg);
             break;
             
         // Admin buttons
         case buttons.ADMIN_PANEL:
+        case '🛠️ Admin Panel':
             await handleAdminPanel(msg);
             break;
         case buttons.BOT_SETTINGS:
+        case '⚙️ Bot Settings':
             await SettingsHandler.showSettingsDashboard(msg);
             break;
         case '💰 Financial Settings':
@@ -176,6 +203,30 @@ async function handleButtonClick(msg, text) {
             break;
         case '📊 View All Config':
             await SettingsHandler.handleViewAllConfig(msg);
+            break;
+
+        // Student Management buttons
+        case '👥 Manage Students':
+        case '📋 View All Students':
+            await StudentManagement.viewAllStudents(msg);
+            break;
+        case '✅ Paid Students':
+            await StudentManagement.viewAllStudents(msg, 'paid');
+            break;
+        case '❌ Unpaid Students':
+            await StudentManagement.viewAllStudents(msg, 'unpaid');
+            break;
+        case '👥 Referral Tree':
+            await StudentManagement.showReferralTree(msg);
+            break;
+        case '📅 Set Date Filter':
+            await StudentManagement.showDateFilter(msg);
+            break;
+        case '📤 Export Data':
+            await StudentManagement.showExportOptions(msg);
+            break;
+        case '🗑️ Delete Students':
+            await StudentManagement.showDeleteOptions(msg);
             break;
             
         // Navigation buttons (keep these static for now)
@@ -294,7 +345,7 @@ const handleCallbackQuery = async (callbackQuery) => {
             await bot.answerCallbackQuery(callbackQuery.id, { text: 'Editing cancelled' });
             await SettingsHandler.showSettingsDashboard(callbackQuery.message);
         }
-        // RESET FUNCTIONALITY - FIXED
+        // RESET FUNCTIONALITY
         else if (data === 'reset_all_settings') {
             await SettingsHandler.handleResetAction(callbackQuery, 'all');
         }
@@ -306,6 +357,10 @@ const handleCallbackQuery = async (callbackQuery) => {
         }
         else if (data === 'reset_messages') {
             await SettingsHandler.handleResetAction(callbackQuery, 'messages');
+        }
+        // STUDENT MANAGEMENT CALLBACKS
+        else if (data.startsWith('students_') || data.startsWith('export_') || data === 'detailed_referrals') {
+            await StudentManagement.handleStudentCallback(callbackQuery, data);
         }
         // Admin callbacks
         else if (data.startsWith('admin_approve_')) {
