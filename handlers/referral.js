@@ -7,6 +7,8 @@ const handleInviteEarn = async (msg) => {
         const chatId = msg.chat.id;
         const userId = msg.from.id;
         
+        console.log('🔄 HandleInviteEarn called for user:', userId);
+        
         const user = await getUser(userId);
         if (!user) {
             await bot.sendMessage(chatId, '❌ User not found. Please start the bot with /start first.');
@@ -20,29 +22,21 @@ const handleInviteEarn = async (msg) => {
         const inviteMessage = 
             `🎁 *INVITE & EARN*\n\n` +
             `🔗 *Your Referral Link:*\n` +
-            `${referralLink}\n\n` +
+            `\`${referralLink}\`\n\n` +
             `📊 *Your Stats:*\n` +
             `• Referrals: ${user.referralCount || 0}\n` +
             `• Rewards: ${user.rewards || 0} ETB\n` +
             `• Can Withdraw: ${canWithdraw ? '✅ Yes' : '❌ No'}\n\n` +
             `💰 *Earn ${REFERRAL_REWARD} ETB for each successful referral!*\n\n` +
             `📝 *How it works:*\n` +
-            `1. Click the button below to share\n` +
+            `1. Share your link above\n` +
             `2. Friends register using your link\n` +
             `3. You get ${REFERRAL_REWARD} ETB when they complete registration\n` +
             `4. Withdraw after ${MIN_REFERRALS_FOR_WITHDRAW} referrals`;
 
-        const options = {
-            reply_markup: {
-                inline_keyboard: [
-                    [{ text: '🔗 Share Your Referral Link', url: referralLink }]
-                ]
-            },
-            parse_mode: 'Markdown'
-        };
-
-        await bot.sendMessage(chatId, inviteMessage, options);
-        console.log('✅ Invite & Earn sent successfully to user:', userId);
+        await bot.sendMessage(chatId, inviteMessage, { parse_mode: 'Markdown' });
+        
+        console.log('✅ Invite & Earn message sent to user:', userId);
         
     } catch (error) {
         console.error('❌ Error in handleInviteEarn:', error);
@@ -54,6 +48,8 @@ const handleLeaderboard = async (msg) => {
     try {
         const chatId = msg.chat.id;
         const { getTopReferrers } = require('../database/users');
+        
+        console.log('🔄 HandleLeaderboard called');
         
         const topReferrers = await getTopReferrers(10);
 
@@ -81,6 +77,7 @@ const handleLeaderboard = async (msg) => {
         leaderboardText += `\n💡 *Tip:* Share your referral link to climb the leaderboard!`;
 
         await bot.sendMessage(chatId, leaderboardText, { parse_mode: 'Markdown' });
+        console.log('✅ Leaderboard sent');
         
     } catch (error) {
         console.error('❌ Error in handleLeaderboard:', error);
@@ -93,6 +90,8 @@ const handleMyReferrals = async (msg) => {
         const chatId = msg.chat.id;
         const userId = msg.from.id;
         const { getUserReferrals } = require('../database/users');
+        
+        console.log('🔄 HandleMyReferrals called for user:', userId);
         
         const referrals = await getUserReferrals(userId);
         const user = await getUser(userId);
@@ -121,6 +120,7 @@ const handleMyReferrals = async (msg) => {
         referralText += `\n💰 *You've earned: ${(referrals.length * REFERRAL_REWARD)} ETB*`;
         
         await bot.sendMessage(chatId, referralText, { parse_mode: 'Markdown' });
+        console.log('✅ My referrals sent to user:', userId);
         
     } catch (error) {
         console.error('❌ Error in handleMyReferrals:', error);
@@ -130,31 +130,49 @@ const handleMyReferrals = async (msg) => {
 
 const handleReferralStart = async (msg, userId) => {
     try {
+        console.log('🔄 HandleReferralStart called');
+        console.log('📨 Message text:', msg.text);
+        console.log('👤 New user ID:', userId);
+        
         let referrerId = null;
         
         if (msg.text && msg.text.includes('start=ref_')) {
             const refMatch = msg.text.match(/start=ref_(\d+)/);
             if (refMatch && refMatch[1]) {
                 referrerId = parseInt(refMatch[1]);
+                console.log('✅ Referrer ID found:', referrerId);
                 
+                // Prevent self-referral
                 if (referrerId !== userId) {
                     const referrer = await getUser(referrerId);
                     const newUser = await getUser(userId);
                     
+                    console.log('🔍 Referrer exists:', !!referrer);
+                    console.log('🔍 New user exists:', !!newUser);
+                    
                     if (referrer && newUser) {
+                        // Update referrer's stats
                         referrer.referralCount = (referrer.referralCount || 0) + 1;
                         referrer.rewards = (referrer.rewards || 0) + REFERRAL_REWARD;
                         referrer.totalRewards = (referrer.totalRewards || 0) + REFERRAL_REWARD;
                         
                         await setUser(referrerId, referrer);
                         
+                        // Track who referred this user
                         newUser.referrerId = referrerId.toString();
                         await setUser(userId, newUser);
                         
                         console.log(`✅ Referral recorded: User ${userId} referred by ${referrerId}`);
+                        console.log(`💰 Referrer ${referrerId} now has: ${referrer.referralCount} referrals, ${referrer.rewards} ETB`);
+                    } else {
+                        console.log('❌ Referrer or new user not found in database');
                     }
+                } else {
+                    console.log('❌ Self-referral detected, skipping');
                 }
             }
+        } else {
+            console.log('❌ No referral parameter found in start message');
         }
         
         return referrerId;
