@@ -8,7 +8,14 @@ module.exports = {
     REFERRAL_REWARD: parseInt(process.env.REFERRAL_REWARD) || 30,
     MIN_REFERRALS_FOR_WITHDRAW: parseInt(process.env.MIN_REFERRALS_FOR_WITHDRAW) || 4,
     BOT_USERNAME: process.env.BOT_USERNAME || 'freshman_academy_jmubot'
-     // NEW DEFAULT MESSAGE VARIABLES
+     // NEW SYSTEM CONTROL VARIABLES
+    MAINTENANCE_MODE: process.env.MAINTENANCE_MODE === 'true',
+    INVITE_SYSTEM_ENABLED: process.env.INVITE_SYSTEM_ENABLED !== 'false',
+    TUTORIAL_SYSTEM_ENABLED: process.env.TUTORIAL_SYSTEM_ENABLED !== 'false',
+    WITHDRAWAL_SYSTEM_ENABLED: process.env.WITHDRAWAL_SYSTEM_ENABLED !== 'false',
+    REGISTRATION_SYSTEM_ENABLED: process.env.REGISTRATION_SYSTEM_ENABLED !== 'false',
+    
+    // NEW DEFAULT MESSAGE VARIABLES
     MAINTENANCE_MESSAGE: process.env.MAINTENANCE_MESSAGE || '🚧 Bot is under maintenance. Please check back later.',
     REGISTRATION_DISABLED_MESSAGE: process.env.REGISTRATION_DISABLED_MESSAGE || '❌ Registration is temporarily closed.',
     TUTORIALS_DISABLED_MESSAGE: process.env.TUTORIALS_DISABLED_MESSAGE || '❌ Tutorial access is currently unavailable.',
@@ -18,6 +25,7 @@ module.exports = {
     // NEW ANALYTICS DASHBOARD VARIABLE
     ENABLE_ANALYTICS_DASHBOARD: process.env.ENABLE_ANALYTICS_DASHBOARD !== 'false'
 };
+
 
 
 
