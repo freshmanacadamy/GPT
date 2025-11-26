@@ -1,3 +1,13 @@
+// Add at the top of api.js
+const { initializeConfig } = require('./config/environment');
+
+// Initialize configuration on startup
+initializeConfig().then(() => {
+    console.log('✅ Bot configuration initialized');
+}).catch(error => {
+    console.error('❌ Failed to initialize config:', error);
+});
+
 // Global error handlers
 process.on('unhandledRejection', (error) => {
     console.error('🔴 Unhandled Promise Rejection:', error);
@@ -26,6 +36,7 @@ const { handleInviteEarn, handleLeaderboard, handleMyReferrals, handleReferralSt
 const { handleMyProfile, handleWithdrawRewards, handleChangePaymentMethod, handleSetPaymentMethod } = require('./handlers/profile');
 const { handleAdminPanel, handleAdminApprove, handleAdminReject, handleAdminDetails, handleAdminStats } = require('./handlers/admin');
 const { handleHelp, handleRules } = require('./handlers/help');
+const SettingsHandler = require('./handlers/settings');
 
 // Import database functions for health check
 const { getAllUsers, getVerifiedUsers } = require('./database/users');
@@ -41,6 +52,13 @@ const handleMessage = async (msg) => {
     if (!text && !msg.contact && !msg.photo && !msg.document) return;
 
     try {
+        // Check if user is in editing mode
+        const editingState = SettingsHandler.getEditingState(userId);
+        if (editingState) {
+            await handleEditingInput(msg, editingState);
+            return;
+        }
+
         // First check if it's a navigation command (Cancel Registration, Homepage)
         const isNavigation = await handleNavigation(msg);
         if (isNavigation) return;
@@ -74,6 +92,11 @@ const handleMessage = async (msg) => {
                     break;
                 case '/register':
                     await handleRegisterTutorial(msg);
+                    break;
+                case '/cancel':
+                    SettingsHandler.clearEditingState(userId);
+                    await bot.sendMessage(chatId, '❌ Editing cancelled.');
+                    await showMainMenu(chatId);
                     break;
                 default:
                     await showMainMenu(chatId);
@@ -119,6 +142,33 @@ const handleMessage = async (msg) => {
                 case '🔙 Back to Menu':
                     await showMainMenu(chatId);
                     break;
+                case '🛠️ Admin Panel':
+                    await handleAdminPanel(msg);
+                    break;
+                case '⚙️ Bot Settings':
+                    await SettingsHandler.showSettingsDashboard(msg);
+                    break;
+                case '💰 Financial Settings':
+                    await SettingsHandler.showFinancialSettings(msg);
+                    break;
+                case '⚙️ Feature Toggles':
+                    await SettingsHandler.showFeatureToggles(msg);
+                    break;
+                case '📝 Message Settings':
+                    await SettingsHandler.showMessageManagement(msg);
+                    break;
+                case '🔧 Button Texts':
+                    await SettingsHandler.showButtonManagement(msg);
+                    break;
+                case '🔄 Reset Settings':
+                    await SettingsHandler.handleResetSettings(msg);
+                    break;
+                case '📊 View All Config':
+                    await SettingsHandler.handleViewAllConfig(msg);
+                    break;
+                case '🔙 Back to Admin Panel':
+                    await handleAdminPanel(msg);
+                    break;
                 default:
                     // Handle name input and other text
                     await handleNameInput(msg);
@@ -129,6 +179,35 @@ const handleMessage = async (msg) => {
         await bot.sendMessage(chatId, '❌ An error occurred. Please try again.');
     }
 };
+
+// Handle editing input from settings
+async function handleEditingInput(msg, editingState) {
+    const chatId = msg.chat.id;
+    const userId = msg.from.id;
+    const text = msg.text;
+
+    if (text === '/cancel') {
+        SettingsHandler.clearEditingState(userId);
+        await bot.sendMessage(chatId, '❌ Editing cancelled.');
+        await SettingsHandler.showSettingsDashboard(msg);
+        return;
+    }
+
+    switch (editingState.type) {
+        case 'financial':
+            await SettingsHandler.handleNumericInput(msg, editingState.key, text);
+            break;
+        case 'message':
+            await SettingsHandler.handleMessageInput(msg, editingState.key, text);
+            break;
+        case 'button':
+            await SettingsHandler.handleButtonInput(msg, editingState.key, text);
+            break;
+        default:
+            await bot.sendMessage(chatId, '❌ Unknown editing mode. Cancelling.');
+            SettingsHandler.clearEditingState(userId);
+    }
+}
 
 // ========== START COMMAND ========== //
 const handleStart = async (msg) => {
@@ -171,10 +250,51 @@ const handleCallbackQuery = async (callbackQuery) => {
             return;
         }
 
-        console.log('🔄 Registration callback not handled, trying admin callbacks...');
+        console.log('🔄 Registration callback not handled, trying settings callbacks...');
 
+        // Settings callbacks
+        if (data.startsWith('edit_financial:')) {
+            const settingKey = data.replace('edit_financial:', '');
+            await SettingsHandler.handleFinancialEdit(callbackQuery, settingKey);
+        }
+        else if (data.startsWith('toggle_feature:')) {
+            const featureKey = data.replace('toggle_feature:', '');
+            await SettingsHandler.handleFeatureToggle(callbackQuery, featureKey);
+        }
+        else if (data.startsWith('edit_message:')) {
+            const messageKey = data.replace('edit_message:', '');
+            await SettingsHandler.handleMessageEdit(callbackQuery, messageKey);
+        }
+        else if (data.startsWith('edit_buttons:')) {
+            const category = data.replace('edit_buttons:', '');
+            await SettingsHandler.handleButtonEdit(callbackQuery, category);
+        }
+        else if (data.startsWith('edit_button:')) {
+            const buttonKey = data.replace('edit_button:', '');
+            await SettingsHandler.handleIndividualButtonEdit(callbackQuery, buttonKey);
+        }
+        else if (data === 'settings_back') {
+            await SettingsHandler.showSettingsDashboard(callbackQuery.message);
+        }
+        else if (data === 'button_management_back') {
+            await SettingsHandler.showButtonManagement(callbackQuery.message);
+        }
+        else if (data === 'cancel_edit') {
+            SettingsHandler.clearEditingState(userId);
+            await bot.answerCallbackQuery(callbackQuery.id, { text: 'Editing cancelled' });
+            await SettingsHandler.showSettingsDashboard(callbackQuery.message);
+        }
+        else if (data === 'reset_all_settings') {
+            const success = await require('../database/config').ConfigService.resetToDefault();
+            if (success) {
+                await bot.answerCallbackQuery(callbackQuery.id, { text: '✅ All settings reset to defaults' });
+                await SettingsHandler.showSettingsDashboard(callbackQuery.message);
+            } else {
+                await bot.answerCallbackQuery(callbackQuery.id, { text: '❌ Failed to reset settings' });
+            }
+        }
         // Admin callbacks
-        if (data.startsWith('admin_approve_')) {
+        else if (data.startsWith('admin_approve_')) {
             const targetUserId = parseInt(data.replace('admin_approve_', ''));
             console.log(`🔄 Processing admin approve for user: ${targetUserId}`);
             await handleAdminApprove(targetUserId, userId);
