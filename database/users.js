@@ -46,6 +46,38 @@ const getVerifiedUsers = async () => {
     }
 };
 
+// Add to users.js
+
+const deleteUser = async (userId) => {
+    try {
+        await db.collection('users').doc(userId.toString()).delete();
+        return true;
+    } catch (error) {
+        console.error('Error deleting user:', error);
+        return false;
+    }
+};
+
+const getUsersByDateRange = async (startDate, endDate) => {
+    try {
+        const snapshot = await db.collection('users')
+            .where('joinedAt', '>=', startDate)
+            .where('joinedAt', '<=', endDate)
+            .get();
+        
+        const users = {};
+        snapshot.forEach(doc => {
+            users[doc.id] = doc.data();
+        });
+        return users;
+    } catch (error) {
+        console.error('Error getting users by date range:', error);
+        return {};
+    }
+};
+
+
+
 const getUserReferrals = async (referrerId) => {
     try {
         const snapshot = await db.collection('users').where('referrerId', '==', referrerId.toString()).get();
@@ -80,5 +112,9 @@ module.exports = {
     getAllUsers,
     getVerifiedUsers,
     getUserReferrals,
-    getTopReferrers
+    getTopReferrers,
+    deleteUser,
+    getUsersByDateRange
 };
+
+
