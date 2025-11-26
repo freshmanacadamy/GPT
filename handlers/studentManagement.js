@@ -167,7 +167,7 @@ class StudentManagement {
         await this.displayStudentBatch(chatId, filteredUsers, 0, filterByPayment);
     }
 
-    // Display student batch with pagination
+    // Display student batch with pagination - FIXED VERSION
     static async displayStudentBatch(chatId, students, startIndex, filterType = null) {
         const batchSize = 10;
         const endIndex = Math.min(startIndex + batchSize, students.length);
@@ -200,19 +200,33 @@ class StudentManagement {
 
         const keyboard = [];
         
-        // Navigation buttons
+        // Navigation buttons - FIXED: Proper callback data format
         if (startIndex > 0) {
-            keyboard.push([{ text: '⬅️ Previous', callback_data: `students_prev_${startIndex - batchSize}_${filterType}` }]);
+            keyboard.push([{ 
+                text: '⬅️ Previous', 
+                callback_data: `students_prev_${startIndex - batchSize}_${filterType || 'all'}` 
+            }]);
         }
         
         if (endIndex < students.length) {
-            if (keyboard.length > 0) {
-                keyboard[0].push({ text: 'Next ➡️', callback_data: `students_next_${endIndex}_${filterType}` });
+            const nextButton = { 
+                text: 'Next ➡️', 
+                callback_data: `students_next_${endIndex}_${filterType || 'all'}` 
+            };
+            
+            if (keyboard.length > 0 && keyboard[0].length < 2) {
+                keyboard[0].push(nextButton);
             } else {
-                keyboard.push([{ text: 'Next ➡️', callback_data: `students_next_${endIndex}_${filterType}` }]);
+                keyboard.push([nextButton]);
             }
         }
 
+        // Action buttons
+        keyboard.push([
+            { text: '📤 Export This List', callback_data: `export_${filterType || 'all'}` },
+            { text: '📅 Set Date Filter', callback_data: 'set_date_filter' }
+        ]);
+        
         keyboard.push([{ text: '🔙 Back to Management', callback_data: 'students_back' }]);
 
         await bot.sendMessage(chatId, message, {
@@ -484,7 +498,7 @@ class StudentManagement {
         });
     }
 
-    // Handle student management callbacks
+    // Handle student management callbacks - FIXED VERSION
     static async handleStudentCallback(callbackQuery, data) {
         const chatId = callbackQuery.message.chat.id;
         const messageId = callbackQuery.message.message_id;
@@ -493,8 +507,16 @@ class StudentManagement {
             await bot.deleteMessage(chatId, messageId);
             await this.showStudentManagement({ chat: { id: chatId } });
         }
+        else if (data === 'set_date_filter') {
+            await bot.deleteMessage(chatId, messageId);
+            await this.showDateFilter({ chat: { id: chatId } });
+        }
         else if (data.startsWith('students_prev_') || data.startsWith('students_next_')) {
-            const [_, action, startIndex, filterType] = data.split('_');
+            const parts = data.split('_');
+            const action = parts[1]; // 'prev' or 'next'
+            const startIndex = parseInt(parts[2]);
+            const filterType = parts[3] || 'all';
+            
             const allUsers = await getAllUsers();
             const state = dateFilterState.get(chatId);
             let filteredUsers = this.applyDateFilter(Object.values(allUsers), state);
@@ -506,7 +528,7 @@ class StudentManagement {
             }
 
             await bot.deleteMessage(chatId, messageId);
-            await this.displayStudentBatch(chatId, filteredUsers, parseInt(startIndex), filterType);
+            await this.displayStudentBatch(chatId, filteredUsers, startIndex, filterType);
         }
         else if (data.startsWith('export_')) {
             const exportType = data.replace('export_', '');
