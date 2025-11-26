@@ -22,7 +22,7 @@ const handleInviteEarn = async (msg) => {
         const inviteMessage = 
             `🎁 *INVITE & EARN*\n\n` +
             `🔗 *Your Referral Link:*\n` +
-            `\`${referralLink}\`\n\n` +
+            `${referralLink}\n\n` +
             `📊 *Your Stats:*\n` +
             `• Referrals: ${user.referralCount || 0}\n` +
             `• Rewards: ${user.rewards || 0} ETB\n` +
@@ -34,7 +34,18 @@ const handleInviteEarn = async (msg) => {
             `3. You get ${REFERRAL_REWARD} ETB when they complete registration\n` +
             `4. Withdraw after ${MIN_REFERRALS_FOR_WITHDRAW} referrals`;
 
-        await bot.sendMessage(chatId, inviteMessage, { parse_mode: 'Markdown' });
+        // Send message with clickable button
+        const options = {
+            reply_markup: {
+                inline_keyboard: [
+                    [{ text: '🔗 Click to Share Referral Link', url: referralLink }],
+                    [{ text: '📤 Share with Friends', switch_inline_query: `Join our tutorial bot and earn money! ${referralLink}` }]
+                ]
+            },
+            parse_mode: 'Markdown'
+        };
+
+        await bot.sendMessage(chatId, inviteMessage, options);
         
         console.log('✅ Invite & Earn message sent to user:', userId);
         
