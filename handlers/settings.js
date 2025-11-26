@@ -481,20 +481,30 @@ class SettingsHandler {
         }
     }
 
-    // Reset settings
+    // Reset settings - FIXED VERSION
     static async handleResetSettings(msg) {
         const chatId = msg.chat.id;
 
         const resetText = 
             `🔄 *RESET SETTINGS*\n\n` +
-            `This will reset all settings to their default values.\n\n` +
-            `Are you sure you want to continue?`;
+            `Choose what you want to reset:\n\n` +
+            `• Reset All Settings: All settings to default values\n` +
+            `• Reset Financial Only: Only financial settings\n` +
+            `• Reset Features Only: Only feature toggles\n` +
+            `• Reset Messages Only: Only messages and texts`;
 
         const options = {
             reply_markup: {
                 inline_keyboard: [
                     [
-                        { text: '✅ Yes, Reset All', callback_data: 'reset_all_settings' },
+                        { text: '🔄 Reset All Settings', callback_data: 'reset_all_settings' },
+                        { text: '💰 Reset Financial', callback_data: 'reset_financial' }
+                    ],
+                    [
+                        { text: '⚙️ Reset Features', callback_data: 'reset_features' },
+                        { text: '📝 Reset Messages', callback_data: 'reset_messages' }
+                    ],
+                    [
                         { text: '❌ Cancel', callback_data: 'settings_back' }
                     ]
                 ]
@@ -503,6 +513,75 @@ class SettingsHandler {
         };
 
         await bot.sendMessage(chatId, resetText, options);
+    }
+
+    // Handle reset actions - FIXED VERSION
+    static async handleResetAction(callbackQuery, resetType) {
+        const chatId = callbackQuery.message.chat.id;
+        const messageId = callbackQuery.message.message_id;
+
+        try {
+            let success = false;
+            let message = '';
+
+            switch (resetType) {
+                case 'all':
+                    success = await ConfigService.resetToDefault();
+                    message = '✅ All settings reset to default values!';
+                    break;
+                case 'financial':
+                    // Reset only financial settings
+                    const financialKeys = ['registration_fee', 'referral_reward', 'min_referrals_withdraw', 'min_withdrawal_amount'];
+                    for (const key of financialKeys) {
+                        await ConfigService.resetToDefault(key);
+                    }
+                    success = true;
+                    message = '✅ Financial settings reset to defaults!';
+                    break;
+                case 'features':
+                    // Reset only feature toggles
+                    const featureKeys = ['registration_enabled', 'referral_enabled', 'withdrawal_enabled', 'tutorial_enabled', 'maintenance_mode'];
+                    for (const key of featureKeys) {
+                        await ConfigService.resetToDefault(key);
+                    }
+                    success = true;
+                    message = '✅ Feature toggles reset to defaults!';
+                    break;
+                case 'messages':
+                    // Reset only messages
+                    const messageKeys = [
+                        'welcome_message', 'start_message', 'reg_start', 'reg_name_saved', 
+                        'reg_phone_saved', 'reg_success', 'maintenance_message',
+                        'registration_disabled_message', 'referral_disabled_message',
+                        'withdrawal_disabled_message', 'tutorials_disabled_message'
+                    ];
+                    for (const key of messageKeys) {
+                        await ConfigService.resetToDefault(key);
+                    }
+                    success = true;
+                    message = '✅ Messages reset to defaults!';
+                    break;
+            }
+
+            if (success) {
+                // Refresh the live config
+                await refreshConfig();
+                
+                await bot.answerCallbackQuery(callbackQuery.id, { text: message });
+                // Delete the reset message and show settings dashboard
+                await bot.deleteMessage(chatId, messageId);
+                await this.showSettingsDashboard({ chat: { id: chatId } });
+            } else {
+                await bot.answerCallbackQuery(callbackQuery.id, { 
+                    text: '❌ Failed to reset settings' 
+                });
+            }
+        } catch (error) {
+            console.error('Reset error:', error);
+            await bot.answerCallbackQuery(callbackQuery.id, { 
+                text: '❌ Error resetting settings' 
+            });
+        }
     }
 
     // View all configuration
