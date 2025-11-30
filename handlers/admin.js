@@ -1,7 +1,6 @@
 const bot = require('../config/bot');
-const { getUser, setUser, getAllUsers, getVerifiedUsers, getPendingPayments } = require('../database/users');
+const { getUser, setUser, getAllUsers } = require('../database/users');
 const { ADMIN_IDS } = require('../config/environment');
-const { notifyAdminsNewRegistration, notifyAdminsNewPayment } = require('../utils/notifications');
 
 // Store admin message composition state
 const adminMessageState = new Map();
