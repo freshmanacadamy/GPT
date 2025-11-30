@@ -1,6 +1,6 @@
 const bot = require('../config/bot');
 const { getUser, setUser } = require('../database/users');
-const environment = require('../config/environment'); // ✅ FIXED: Import environment module
+const environment = require('../config/environment');
 const { showMainMenu } = require('./menu');
 const { notifyAdminsNewRegistration, notifyAdminsNewPayment } = require('../utils/notifications');
 
@@ -24,21 +24,9 @@ const handleRegisterTutorial = async (msg) => {
         return;
     }
 
-    // ✅ NEW: Check if user has pending registration
-    if (user?.registrationStep && user.registrationStep !== 'not_started' && user.registrationStep !== 'completed') {
+    // Check if user has any registration in progress
+    if (user?.registrationStep && user.registrationStep !== 'not_started') {
         await showRegistrationStatus(chatId, user);
-        return;
-    }
-
-    // If user has completed registration but pending approval
-    if (user?.registrationStep === 'completed' && user.paymentStatus === 'pending_approval') {
-        await bot.sendMessage(chatId,
-            `⏳ *Registration Pending Approval*\n\n` +
-            `Your registration is complete and waiting for admin approval.\n\n` +
-            `Please wait for verification. You will be notified once approved.`,
-            { parse_mode: 'Markdown' }
-        );
-        await showMainMenu(chatId);
         return;
     }
 
@@ -66,15 +54,24 @@ const handleRegisterTutorial = async (msg) => {
 
 // Show registration status and options
 const showRegistrationStatus = async (chatId, user) => {
-    const statusMessage = 
-        `📝 *REGISTRATION STATUS*\n\n` +
-        `You have a pending registration:\n` +
-        `${user.name ? `✅ Name: ${user.name}\n` : '❌ Name: Not provided\n'}` +
-        `${user.phone ? `✅ Phone: ${user.phone}\n` : '❌ Phone: Not provided\n'}` +
-        `${user.studentType ? `✅ Stream: ${user.studentType === 'natural' ? 'Natural Science' : 'Social Science'}\n` : '❌ Stream: Not selected\n'}` +
-        `${user.paymentMethod ? `✅ Payment Method: ${user.paymentMethod === 'telebirr' ? 'TeleBirr' : 'CBE Birr'}\n` : '❌ Payment: Not selected\n'}` +
-        `📊 Status: ${getRegistrationStatus(user)}\n\n` +
-        `What would you like to do?`;
+    let statusMessage = '';
+    
+    if (user.registrationStep === 'completed' && user.paymentStatus === 'pending_approval') {
+        statusMessage = 
+            `⏳ *REGISTRATION PENDING APPROVAL*\n\n` +
+            `Your registration is complete and waiting for admin approval.\n\n` +
+            `What would you like to do?`;
+    } else {
+        statusMessage = 
+            `📝 *REGISTRATION IN PROGRESS*\n\n` +
+            `You have an incomplete registration:\n` +
+            `${user.name ? `✅ Name: ${user.name}\n` : '❌ Name: Not provided\n'}` +
+            `${user.phone ? `✅ Phone: ${user.phone}\n` : '❌ Phone: Not provided\n'}` +
+            `${user.studentType ? `✅ Stream: ${user.studentType === 'natural' ? 'Natural Science' : 'Social Science'}\n` : '❌ Stream: Not selected\n'}` +
+            `${user.paymentMethod ? `✅ Payment Method: ${user.paymentMethod === 'telebirr' ? 'TeleBirr' : 'CBE Birr'}\n` : '❌ Payment: Not selected\n'}` +
+            `📊 Status: ${getRegistrationStatus(user)}\n\n` +
+            `What would you like to do?`;
+    }
 
     const options = {
         reply_markup: {
@@ -93,7 +90,7 @@ const showRegistrationStatus = async (chatId, user) => {
 
 // Get registration status text
 const getRegistrationStatus = (user) => {
-    if (user.registrationStep === 'completed') return 'Pending Admin Approval';
+    if (user.registrationStep === 'completed' && user.paymentStatus === 'pending_approval') return 'Pending Admin Approval';
     if (user.registrationStep === 'awaiting_screenshot') return 'Waiting for Payment Screenshot';
     if (user.registrationStep === 'awaiting_payment_method') return 'Select Payment Method';
     if (user.registrationStep === 'awaiting_stream') return 'Select Stream';
@@ -256,7 +253,7 @@ const completeRegistration = async (chatId, userId, fileId = null) => {
         await notifyAdminsNewRegistration(user);
     }
 
-    // ✅ FIXED: Auto-redirect to main menu after 3 seconds
+    // Auto-redirect to main menu after 3 seconds
     setTimeout(async () => {
         try {
             await showMainMenu(chatId);
@@ -278,6 +275,18 @@ const continuePreviousRegistration = async (msg) => {
         return;
     }
 
+    // If registration is completed and pending approval, don't allow continuation
+    if (user.registrationStep === 'completed' && user.paymentStatus === 'pending_approval') {
+        await bot.sendMessage(chatId, 
+            `⏳ *Registration Pending Approval*\n\n` +
+            `Your registration is complete and waiting for admin approval.\n\n` +
+            `Please wait for verification. You will be notified once approved.`,
+            { parse_mode: 'Markdown' }
+        );
+        await showMainMenu(chatId);
+        return;
+    }
+
     switch (user.registrationStep) {
         case 'awaiting_name':
             await askForName(chatId);
@@ -293,13 +302,6 @@ const continuePreviousRegistration = async (msg) => {
             break;
         case 'awaiting_screenshot':
             await showAccountDetails(chatId, user.paymentMethod, userId);
-            break;
-        case 'completed':
-            await bot.sendMessage(chatId, 
-                '✅ Your registration is complete and pending admin approval.',
-                { parse_mode: 'Markdown' }
-            );
-            await showMainMenu(chatId);
             break;
         default:
             await handleRegisterTutorial(msg);
@@ -509,7 +511,10 @@ const handleNavigation = async (msg) => {
         return true;
     } else if (text === '❌ Cancel & Start New') {
         await handleCancelRegistration(msg);
-        await handleRegisterTutorial(msg); // Restart registration
+        // Wait a moment then start new registration
+        setTimeout(async () => {
+            await handleRegisterTutorial(msg);
+        }, 500);
         return true;
     } else if (text === '📝 Continue Registration') {
         await continuePreviousRegistration(msg);
