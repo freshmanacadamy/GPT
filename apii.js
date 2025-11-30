@@ -447,3 +447,4 @@ module.exports = async (req, res) => {
 };
 
 console.log('✅ Tutorial Registration Bot configured for Vercel!');
+
