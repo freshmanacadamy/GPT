@@ -38,10 +38,7 @@ const { handleInviteEarn, handleLeaderboard, handleMyReferrals, handleReferralSt
 const { handleMyProfile, handleWithdrawRewards, handleChangePaymentMethod, handleSetPaymentMethod } = require('./handlers/profile');
 const { handleAdminPanel, handleAdminApprove, handleAdminReject, handleAdminDetails, handleAdminStats } = require('./handlers/admin');
 const { handleHelp, handleRules } = require('./handlers/help');
-
-// ✅ FIXED: SettingsHandler should now work properly
 const SettingsHandler = require('./handlers/settings');
-
 const StudentManagement = require('./handlers/studentManagement');
 
 // Import database functions for health check
@@ -58,11 +55,33 @@ const handleMessage = async (msg) => {
     if (!text && !msg.contact && !msg.photo && !msg.document) return;
 
     try {
-        // ✅ FIXED: SettingsHandler should now work
+        // Check if user is in editing mode (settings)
         const editingState = SettingsHandler.getEditingState(userId);
         if (editingState) {
             await handleEditingInput(msg, editingState);
             return;
+        }
+
+        // Check admin message composition states
+        const adminState = adminMessageState.get(userId);
+        if (adminState) {
+            // Handle broadcast message text
+            if (adminState.type === 'broadcast' && adminState.step === 'waiting_message') {
+                const handled = await AdminHandler.handleBroadcastMessageText(userId, text);
+                if (handled) return;
+            }
+            
+            // Handle single user message text
+            if (adminState.type === 'single_user' && adminState.step === 'waiting_message') {
+                const handled = await AdminHandler.handleCustomMessageText(userId, text);
+                if (handled) return;
+            }
+            
+            // Handle button data input (both single and broadcast)
+            if (adminState.step === 'adding_url_button' || adminState.step === 'adding_callback_button') {
+                const handled = await AdminHandler.handleButtonData(userId, text);
+                if (handled) return;
+            }
         }
 
         // Check if user is in date filter mode (student management)
@@ -207,6 +226,9 @@ async function handleButtonClick(msg, text) {
         case '📊 View All Config':
             await SettingsHandler.handleViewAllConfig(msg);
             break;
+        case '📢 Broadcast Message':
+            await AdminHandler.handleBroadcastMessage(msg);
+            break;
 
         // Student Management buttons
         case '👥 Manage Students':
@@ -312,7 +334,6 @@ const handleCallbackQuery = async (callbackQuery) => {
             return;
         }
 
-        // ✅ FIXED: SettingsHandler callbacks should now work
         // Settings callbacks
         if (data.startsWith('edit_financial:')) {
             const settingKey = data.replace('edit_financial:', '');
@@ -362,71 +383,6 @@ const handleCallbackQuery = async (callbackQuery) => {
         else if (data.startsWith('students_') || data.startsWith('export_') || data === 'detailed_referrals') {
             await StudentManagement.handleStudentCallback(callbackQuery, data);
         }
-
-            // Admin approval messaging callbacks
-else if (data.startsWith('welcome_template:')) {
-    const targetUserId = parseInt(data.replace('welcome_template:', ''));
-    await AdminHandler.sendWelcomeTemplate(userId, targetUserId);
-}
-else if (data.startsWith('custom_msg:')) {
-    const targetUserId = parseInt(data.replace('custom_msg:', ''));
-    await AdminHandler.startCustomMessage(userId, targetUserId);
-}
-else if (data.startsWith('skip_message:')) {
-    const targetUserId = parseInt(data.replace('skip_message:', ''));
-    await AdminHandler.skipMessaging(userId, targetUserId);
-}
-else if (data.startsWith('add_url:')) {
-    const targetUserId = parseInt(data.replace('add_url:', ''));
-    await AdminHandler.addUrlButton(userId, targetUserId);
-}
-else if (data.startsWith('add_callback:')) {
-    const targetUserId = parseInt(data.replace('add_callback:', ''));
-    await AdminHandler.addCallbackButton(userId, targetUserId);
-}
-else if (data.startsWith('preview_msg:')) {
-    const targetUserId = parseInt(data.replace('preview_msg:', ''));
-    await AdminHandler.previewMessage(userId, targetUserId);
-}
-else if (data.startsWith('send_custom:')) {
-    const targetUserId = parseInt(data.replace('send_custom:', ''));
-    await AdminHandler.sendCustomMessage(userId, targetUserId);
-}
-else if (data.startsWith('cancel_custom:')) {
-    const targetUserId = parseInt(data.replace('cancel_custom:', ''));
-    await AdminHandler.cancelCustomMessage(userId, targetUserId);
-}
-else if (data.startsWith('clear_buttons:')) {
-    const targetUserId = parseInt(data.replace('clear_buttons:', ''));
-    await AdminHandler.clearAllButtons(userId, targetUserId);
-}
-
-// Broadcast callbacks
-else if (data.startsWith('broadcast_')) {
-    if (data === 'broadcast_all' || data === 'broadcast_verified' || 
-        data === 'broadcast_natural' || data === 'broadcast_social' ||
-        data === 'broadcast_pending_approval') {
-        await AdminHandler.setBroadcastTarget(callbackQuery, data);
-    }
-    else if (data === 'broadcast_add_url') {
-        await AdminHandler.addBroadcastUrlButton(userId);
-    }
-    else if (data === 'broadcast_add_callback') {
-        await AdminHandler.addBroadcastCallbackButton(userId);
-    }
-    else if (data === 'broadcast_preview') {
-        await AdminHandler.previewBroadcast(userId);
-    }
-    else if (data === 'broadcast_send') {
-        await AdminHandler.sendBroadcast(userId);
-    }
-    else if (data === 'broadcast_cancel') {
-        await AdminHandler.cancelBroadcast(userId);
-    }
-    else if (data === 'broadcast_clear_buttons') {
-        await AdminHandler.clearBroadcastButtons(userId);
-    }
-                
         // Admin callbacks
         else if (data.startsWith('admin_approve_')) {
             const targetUserId = parseInt(data.replace('admin_approve_', ''));
@@ -436,31 +392,72 @@ else if (data.startsWith('broadcast_')) {
             const targetUserId = parseInt(data.replace('admin_reject_', ''));
             await handleAdminReject(targetUserId, userId);
         }
-
-            // Check admin message composition states
-const adminState = adminMessageState.get(userId);
-if (adminState) {
-    // Handle broadcast message text
-    if (adminState.type === 'broadcast' && adminState.step === 'waiting_message') {
-        const handled = await AdminHandler.handleBroadcastMessageText(userId, text);
-        if (handled) return;
-    }
-    
-    // Handle single user message text
-    if (adminState.type === 'single_user' && adminState.step === 'waiting_message') {
-        const handled = await AdminHandler.handleCustomMessageText(userId, text);
-        if (handled) return;
-    }
-    
-    // Handle button data input (both single and broadcast)
-    if (adminState.step === 'adding_url_button' || adminState.step === 'adding_callback_button') {
-        const handled = await AdminHandler.handleButtonData(userId, text);
-        if (handled) return;
-    }
-    
         else if (data.startsWith('admin_details_')) {
             const targetUserId = parseInt(data.replace('admin_details_', ''));
             await handleAdminDetails(targetUserId, userId);
+        }
+        // Admin approval messaging callbacks
+        else if (data.startsWith('welcome_template:')) {
+            const targetUserId = parseInt(data.replace('welcome_template:', ''));
+            await AdminHandler.sendWelcomeTemplate(userId, targetUserId);
+        }
+        else if (data.startsWith('custom_msg:')) {
+            const targetUserId = parseInt(data.replace('custom_msg:', ''));
+            await AdminHandler.startCustomMessage(userId, targetUserId);
+        }
+        else if (data.startsWith('skip_message:')) {
+            const targetUserId = parseInt(data.replace('skip_message:', ''));
+            await AdminHandler.skipMessaging(userId, targetUserId);
+        }
+        else if (data.startsWith('add_url:')) {
+            const targetUserId = parseInt(data.replace('add_url:', ''));
+            await AdminHandler.addUrlButton(userId, targetUserId);
+        }
+        else if (data.startsWith('add_callback:')) {
+            const targetUserId = parseInt(data.replace('add_callback:', ''));
+            await AdminHandler.addCallbackButton(userId, targetUserId);
+        }
+        else if (data.startsWith('preview_msg:')) {
+            const targetUserId = parseInt(data.replace('preview_msg:', ''));
+            await AdminHandler.previewMessage(userId, targetUserId);
+        }
+        else if (data.startsWith('send_custom:')) {
+            const targetUserId = parseInt(data.replace('send_custom:', ''));
+            await AdminHandler.sendCustomMessage(userId, targetUserId);
+        }
+        else if (data.startsWith('cancel_custom:')) {
+            const targetUserId = parseInt(data.replace('cancel_custom:', ''));
+            await AdminHandler.cancelCustomMessage(userId, targetUserId);
+        }
+        else if (data.startsWith('clear_buttons:')) {
+            const targetUserId = parseInt(data.replace('clear_buttons:', ''));
+            await AdminHandler.clearAllButtons(userId, targetUserId);
+        }
+        // Broadcast callbacks
+        else if (data.startsWith('broadcast_')) {
+            if (data === 'broadcast_all' || data === 'broadcast_verified' || 
+                data === 'broadcast_natural' || data === 'broadcast_social' ||
+                data === 'broadcast_pending_approval') {
+                await AdminHandler.setBroadcastTarget(callbackQuery, data);
+            }
+            else if (data === 'broadcast_add_url') {
+                await AdminHandler.addBroadcastUrlButton(userId);
+            }
+            else if (data === 'broadcast_add_callback') {
+                await AdminHandler.addBroadcastCallbackButton(userId);
+            }
+            else if (data === 'broadcast_preview') {
+                await AdminHandler.previewBroadcast(userId);
+            }
+            else if (data === 'broadcast_send') {
+                await AdminHandler.sendBroadcast(userId);
+            }
+            else if (data === 'broadcast_cancel') {
+                await AdminHandler.cancelBroadcast(userId);
+            }
+            else if (data === 'broadcast_clear_buttons') {
+                await AdminHandler.clearBroadcastButtons(userId);
+            }
         }
         else {
             console.log('❌ No handler found for callback:', data);
