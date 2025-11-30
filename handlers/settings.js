@@ -154,32 +154,77 @@ const SettingsHandler = {
         
         this.setEditingState(userId, { type: 'financial', key: settingKey });
         
-        await bot.sendMessage(chatId, `💵 Enter new value for ${settingKey.replace(/_/g, ' ')}:`);
-        await bot.answerCallbackQuery(callbackQuery.id);
+        const currentValue = environment.getConfig(settingKey) || environment[settingKey.toUpperCase()];
+        await bot.sendMessage(chatId, 
+            `💵 Enter new value for ${settingKey.replace(/_/g, ' ')}:\n\n` +
+            `Current: ${currentValue}`
+        );
+        await bot.answerCallbackQuery(callbackQuery.id, { text: 'Ready for input...' });
     },
 
-    // Handle feature toggle
+    // Handle feature toggle - FIXED VERSION
     async handleFeatureToggle(callbackQuery, featureKey) {
-        const chatId = callbackQuery.message.chat.id;
-        const userId = callbackQuery.from.id;
-        
-        const currentValue = environment.getBoolConfig(featureKey);
-        await ConfigService.set(featureKey, !currentValue);
-        await environment.refreshConfig();
-        
-        await bot.answerCallbackQuery(callbackQuery.id, { text: `✅ ${featureKey} ${!currentValue ? 'enabled' : 'disabled'}` });
-        await this.showFeatureToggles(callbackQuery.message);
+        try {
+            console.log('🔵 Feature toggle requested:', featureKey);
+            
+            const currentValue = environment.getBoolConfig(featureKey);
+            const newValue = !currentValue;
+            
+            console.log('🔄 Toggling:', { featureKey, currentValue, newValue });
+            
+            // Save to Firebase
+            await ConfigService.set(featureKey, newValue);
+            
+            // Refresh config from database
+            await environment.refreshConfig();
+            
+            await bot.answerCallbackQuery(callbackQuery.id, { 
+                text: `✅ ${featureKey.replace(/_/g, ' ')} ${newValue ? 'enabled' : 'disabled'}` 
+            });
+            
+            // Update the feature toggles display
+            await this.showFeatureToggles(callbackQuery.message);
+            
+        } catch (error) {
+            console.error('❌ Feature toggle error:', error);
+            await bot.answerCallbackQuery(callbackQuery.id, { 
+                text: '❌ Failed to update setting' 
+            });
+        }
     },
 
-    // Handle message edit
+    // Handle message edit - FIXED VERSION
     async handleMessageEdit(callbackQuery, messageKey) {
-        const chatId = callbackQuery.message.chat.id;
-        const userId = callbackQuery.from.id;
-        
-        this.setEditingState(userId, { type: 'message', key: messageKey });
-        
-        await bot.sendMessage(chatId, `📝 Enter new message for ${messageKey.replace(/_/g, ' ')}:\n\nCurrent: ${environment.getConfig(messageKey) || 'Not set'}`);
-        await bot.answerCallbackQuery(callbackQuery.id);
+        try {
+            console.log('🔵 Message edit requested:', messageKey);
+            
+            const chatId = callbackQuery.message.chat.id;
+            const userId = callbackQuery.from.id;
+            
+            // Set editing state
+            this.setEditingState(userId, { type: 'message', key: messageKey });
+            
+            // Get current message
+            const currentMessage = environment.getConfig(messageKey) || 'Not set';
+            
+            // Send prompt message
+            await bot.sendMessage(chatId, 
+                `📝 *Enter new ${messageKey.replace(/_/g, ' ')}:*\n\n` +
+                `Current message:\n${currentMessage}\n\n` +
+                `Type your new message below:`,
+                { parse_mode: 'Markdown' }
+            );
+            
+            await bot.answerCallbackQuery(callbackQuery.id, { 
+                text: 'Ready for your new message...' 
+            });
+            
+        } catch (error) {
+            console.error('❌ Message edit error:', error);
+            await bot.answerCallbackQuery(callbackQuery.id, { 
+                text: '❌ Failed to start editing' 
+            });
+        }
     },
 
     // Handle button edit
@@ -231,11 +276,14 @@ const SettingsHandler = {
         this.setEditingState(userId, { type: 'button', key: buttonKey });
         
         const currentText = environment.getConfig(buttonKey);
-        await bot.sendMessage(chatId, `🔧 Enter new text for ${buttonKey.replace('btn_', '').replace(/_/g, ' ')}:\n\nCurrent: "${currentText || 'Not set'}"`);
-        await bot.answerCallbackQuery(callbackQuery.id);
+        await bot.sendMessage(chatId, 
+            `🔧 Enter new text for ${buttonKey.replace('btn_', '').replace(/_/g, ' ')}:\n\n` +
+            `Current: "${currentText || 'Not set'}"`
+        );
+        await bot.answerCallbackQuery(callbackQuery.id, { text: 'Ready for input...' });
     },
 
-    // Your existing functions (with minor fixes)
+    // Handle button input
     async handleButtonInput(msg, key, newText) {
         const chatId = msg.chat.id;
         const userId = msg.from.id;
@@ -258,6 +306,7 @@ const SettingsHandler = {
         }
     },
 
+    // Handle message input
     async handleMessageInput(msg, key, newMessage) {
         const chatId = msg.chat.id;
         const userId = msg.from.id;
@@ -271,7 +320,7 @@ const SettingsHandler = {
             
             this.clearEditingState(userId);
             
-            await bot.sendMessage(chatId, `✅ Message updated!`);
+            await bot.sendMessage(chatId, `✅ Message updated successfully!`);
             await this.showMessageManagement(msg);
             
         } catch (error) {
@@ -280,6 +329,7 @@ const SettingsHandler = {
         }
     },
 
+    // Handle numeric input
     async handleNumericInput(msg, key, value) {
         const chatId = msg.chat.id;
         const userId = msg.from.id;
@@ -308,7 +358,7 @@ const SettingsHandler = {
         }
     },
 
-    // Reset functionality
+    // Reset functionality - FIXED VERSION
     async handleResetSettings(msg) {
         const chatId = msg.chat.id;
         
@@ -330,19 +380,92 @@ const SettingsHandler = {
         });
     },
 
+    // Handle reset action - FIXED VERSION
     async handleResetAction(callbackQuery, type) {
-        const chatId = callbackQuery.message.chat.id;
-        
         try {
-            // Implementation for reset would go here
-            await bot.answerCallbackQuery(callbackQuery.id, { text: `✅ ${type} settings reset to defaults` });
+            console.log('🔵 Reset action requested:', type);
+            
+            const resetData = {};
+            
+            // Define default values based on type
+            if (type === 'financial' || type === 'all') {
+                resetData.registration_fee = 500;
+                resetData.referral_reward = 30;
+                resetData.min_referrals_withdraw = 4;
+                resetData.min_withdrawal_amount = 120;
+            }
+            
+            if (type === 'features' || type === 'all') {
+                resetData.maintenance_mode = false;
+                resetData.registration_enabled = true;
+                resetData.referral_enabled = true;
+                resetData.withdrawal_enabled = true;
+                resetData.tutorial_enabled = true;
+            }
+            
+            if (type === 'messages' || type === 'all') {
+                // Reset messages to empty (will use defaults)
+                resetData.welcome_message = '';
+                resetData.start_message = '';
+                resetData.reg_start = '';
+                resetData.reg_name_saved = '';
+                resetData.reg_phone_saved = '';
+                resetData.reg_success = '';
+            }
+            
+            // Reset button texts if it's "all"
+            if (type === 'all') {
+                resetData.btn_register = '';
+                resetData.btn_profile = '';
+                resetData.btn_invite = '';
+                resetData.btn_withdraw = '';
+                resetData.btn_help = '';
+                resetData.btn_rules = '';
+                resetData.btn_leaderboard = '';
+                resetData.btn_pay_fee = '';
+                resetData.btn_confirm_reg = '';
+                resetData.btn_cancel_reg = '';
+                resetData.btn_homepage = '';
+                resetData.btn_share_phone = '';
+                resetData.btn_upload_screenshot = '';
+                resetData.btn_change_payment = '';
+                resetData.btn_my_referrals = '';
+                resetData.btn_admin_panel = '';
+                resetData.btn_manage_students = '';
+                resetData.btn_review_payments = '';
+                resetData.btn_student_stats = '';
+                resetData.btn_broadcast = '';
+                resetData.btn_bot_settings = '';
+                resetData.btn_message_settings = '';
+                resetData.btn_feature_toggle = '';
+            }
+            
+            console.log('🔄 Resetting data:', resetData);
+            
+            // Save all reset values to Firebase
+            for (const [key, value] of Object.entries(resetData)) {
+                await ConfigService.set(key, value);
+            }
+            
+            // Refresh config
             await environment.refreshConfig();
+            
+            await bot.answerCallbackQuery(callbackQuery.id, { 
+                text: `✅ ${type} settings reset to defaults` 
+            });
+            
+            // Go back to settings dashboard
             await this.showSettingsDashboard(callbackQuery.message);
+            
         } catch (error) {
-            await bot.answerCallbackQuery(callbackQuery.id, { text: '❌ Failed to reset settings' });
+            console.error('❌ Reset error:', error);
+            await bot.answerCallbackQuery(callbackQuery.id, { 
+                text: '❌ Failed to reset settings' 
+            });
         }
     },
 
+    // View all config
     async handleViewAllConfig(msg) {
         const chatId = msg.chat.id;
         
