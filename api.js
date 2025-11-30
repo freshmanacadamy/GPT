@@ -20,6 +20,7 @@ process.on('uncaughtException', (error) => {
 // Import configurations
 const bot = require('./config/bot');
 const { showMainMenu } = require('./handlers/menu');
+const environment = require('./config/environment');
 const { BUTTON_TEXTS } = require('./config/environment');
 
 // Import handlers
@@ -38,7 +39,7 @@ const { handleMyProfile, handleWithdrawRewards, handleChangePaymentMethod, handl
 const { handleAdminPanel, handleAdminApprove, handleAdminReject, handleAdminDetails, handleAdminStats } = require('./handlers/admin');
 const { handleHelp, handleRules } = require('./handlers/help');
 
-// ✅ TEMPORARY FIX: Import SettingsHandler but don't use it until fixed
+// ✅ FIXED: SettingsHandler should now work properly
 const SettingsHandler = require('./handlers/settings');
 
 const StudentManagement = require('./handlers/studentManagement');
@@ -57,12 +58,12 @@ const handleMessage = async (msg) => {
     if (!text && !msg.contact && !msg.photo && !msg.document) return;
 
     try {
-        // ✅ TEMPORARY FIX: Comment out SettingsHandler check until we fix the import
-        // const editingState = SettingsHandler.getEditingState(userId);
-        // if (editingState) {
-        //     await handleEditingInput(msg, editingState);
-        //     return;
-        // }
+        // ✅ FIXED: SettingsHandler should now work
+        const editingState = SettingsHandler.getEditingState(userId);
+        if (editingState) {
+            await handleEditingInput(msg, editingState);
+            return;
+        }
 
         // Check if user is in date filter mode (student management)
         const dateState = StudentManagement.dateFilterState;
@@ -112,7 +113,7 @@ const handleMessage = async (msg) => {
                     await handleRegisterTutorial(msg);
                     break;
                 case '/cancel':
-                    // SettingsHandler.clearEditingState(userId);
+                    SettingsHandler.clearEditingState(userId);
                     await bot.sendMessage(chatId, '❌ Editing cancelled.');
                     await showMainMenu(chatId);
                     break;
@@ -133,8 +134,8 @@ const handleMessage = async (msg) => {
 async function handleButtonClick(msg, text) {
     const chatId = msg.chat.id;
     
-    // Get current button texts from environment (which loads from database)
-    const buttons = BUTTON_TEXTS;
+    // ✅ FIXED: Access BUTTON_TEXTS getter EVERY TIME (not stored as variable)
+    const buttons = environment.BUTTON_TEXTS;
 
     // Handle main menu buttons
     switch (text) {
@@ -186,32 +187,25 @@ async function handleButtonClick(msg, text) {
             break;
         case buttons.BOT_SETTINGS:
         case '⚙️ Bot Settings':
-            // ✅ TEMPORARY FIX: Show message instead of broken SettingsHandler
-            await bot.sendMessage(chatId, '⚙️ Bot Settings is temporarily unavailable. Please try again later.');
+            await SettingsHandler.showSettingsDashboard(msg);
             break;
         case '💰 Financial Settings':
-            // await SettingsHandler.showFinancialSettings(msg);
-            await bot.sendMessage(chatId, '💰 Financial Settings is temporarily unavailable.');
+            await SettingsHandler.showFinancialSettings(msg);
             break;
         case '⚙️ Feature Toggles':
-            // await SettingsHandler.showFeatureToggles(msg);
-            await bot.sendMessage(chatId, '⚙️ Feature Toggles is temporarily unavailable.');
+            await SettingsHandler.showFeatureToggles(msg);
             break;
         case '📝 Message Management':
-            // await SettingsHandler.showMessageManagement(msg);
-            await bot.sendMessage(chatId, '📝 Message Management is temporarily unavailable.');
+            await SettingsHandler.showMessageManagement(msg);
             break;
         case '🔧 Button Texts':
-            // await SettingsHandler.showButtonManagement(msg);
-            await bot.sendMessage(chatId, '🔧 Button Texts is temporarily unavailable.');
+            await SettingsHandler.showButtonManagement(msg);
             break;
         case '🔄 Reset Settings':
-            // await SettingsHandler.handleResetSettings(msg);
-            await bot.sendMessage(chatId, '🔄 Reset Settings is temporarily unavailable.');
+            await SettingsHandler.handleResetSettings(msg);
             break;
         case '📊 View All Config':
-            // await SettingsHandler.handleViewAllConfig(msg);
-            await bot.sendMessage(chatId, '📊 View All Config is temporarily unavailable.');
+            await SettingsHandler.handleViewAllConfig(msg);
             break;
 
         // Student Management buttons
@@ -255,34 +249,34 @@ async function handleButtonClick(msg, text) {
     }
 }
 
-// ✅ TEMPORARY FIX: Comment out handleEditingInput function
-// async function handleEditingInput(msg, editingState) {
-//     const chatId = msg.chat.id;
-//     const userId = msg.from.id;
-//     const text = msg.text;
+// Handle editing input from settings
+async function handleEditingInput(msg, editingState) {
+    const chatId = msg.chat.id;
+    const userId = msg.from.id;
+    const text = msg.text;
 
-//     if (text === '/cancel') {
-//         SettingsHandler.clearEditingState(userId);
-//         await bot.sendMessage(chatId, '❌ Editing cancelled.');
-//         await SettingsHandler.showSettingsDashboard(msg);
-//         return;
-//     }
+    if (text === '/cancel') {
+        SettingsHandler.clearEditingState(userId);
+        await bot.sendMessage(chatId, '❌ Editing cancelled.');
+        await SettingsHandler.showSettingsDashboard(msg);
+        return;
+    }
 
-//     switch (editingState.type) {
-//         case 'financial':
-//             await SettingsHandler.handleNumericInput(msg, editingState.key, text);
-//             break;
-//         case 'message':
-//             await SettingsHandler.handleMessageInput(msg, editingState.key, text);
-//             break;
-//         case 'button':
-//             await SettingsHandler.handleButtonInput(msg, editingState.key, text);
-//             break;
-//         default:
-//             await bot.sendMessage(chatId, '❌ Unknown editing mode. Cancelling.');
-//             SettingsHandler.clearEditingState(userId);
-//     }
-// }
+    switch (editingState.type) {
+        case 'financial':
+            await SettingsHandler.handleNumericInput(msg, editingState.key, text);
+            break;
+        case 'message':
+            await SettingsHandler.handleMessageInput(msg, editingState.key, text);
+            break;
+        case 'button':
+            await SettingsHandler.handleButtonInput(msg, editingState.key, text);
+            break;
+        default:
+            await bot.sendMessage(chatId, '❌ Unknown editing mode. Cancelling.');
+            SettingsHandler.clearEditingState(userId);
+    }
+}
 
 // ========== START COMMAND ========== //
 const handleStart = async (msg) => {
@@ -292,14 +286,10 @@ const handleStart = async (msg) => {
     // Handle referral tracking
     await handleReferralStart(msg, userId);
     
-    await bot.sendMessage(chatId,
-        `🎯 *Welcome to Tutorial Registration Bot!*\n\n` +
-        `📚 Register for our comprehensive tutorials\n` +
-        `💰 Registration fee: ${process.env.REGISTRATION_FEE || 500} ETB\n` +
-        `🎁 Earn ${process.env.REFERRAL_REWARD || 30} ETB per referral\n\n` +
-        `Start your registration journey!`,
-        { parse_mode: 'Markdown' }
-    );
+    // ✅ FIXED: Access MESSAGES getter directly
+    await bot.sendMessage(chatId, environment.MESSAGES.START_WELCOME, {
+        parse_mode: 'Markdown'
+    });
 
     await showMainMenu(chatId);
 };
@@ -322,62 +312,51 @@ const handleCallbackQuery = async (callbackQuery) => {
             return;
         }
 
-        // ✅ TEMPORARY FIX: Comment out SettingsHandler callbacks
+        // ✅ FIXED: SettingsHandler callbacks should now work
         // Settings callbacks
         if (data.startsWith('edit_financial:')) {
-            // const settingKey = data.replace('edit_financial:', '');
-            // await SettingsHandler.handleFinancialEdit(callbackQuery, settingKey);
-            await bot.answerCallbackQuery(callbackQuery.id, { text: '❌ Settings temporarily unavailable' });
+            const settingKey = data.replace('edit_financial:', '');
+            await SettingsHandler.handleFinancialEdit(callbackQuery, settingKey);
         }
         else if (data.startsWith('toggle_feature:')) {
-            // const featureKey = data.replace('toggle_feature:', '');
-            // await SettingsHandler.handleFeatureToggle(callbackQuery, featureKey);
-            await bot.answerCallbackQuery(callbackQuery.id, { text: '❌ Settings temporarily unavailable' });
+            const featureKey = data.replace('toggle_feature:', '');
+            await SettingsHandler.handleFeatureToggle(callbackQuery, featureKey);
         }
         else if (data.startsWith('edit_message:')) {
-            // const messageKey = data.replace('edit_message:', '');
-            // await SettingsHandler.handleMessageEdit(callbackQuery, messageKey);
-            await bot.answerCallbackQuery(callbackQuery.id, { text: '❌ Settings temporarily unavailable' });
+            const messageKey = data.replace('edit_message:', '');
+            await SettingsHandler.handleMessageEdit(callbackQuery, messageKey);
         }
         else if (data.startsWith('edit_buttons:')) {
-            // const category = data.replace('edit_buttons:', '');
-            // await SettingsHandler.handleButtonEdit(callbackQuery, category);
-            await bot.answerCallbackQuery(callbackQuery.id, { text: '❌ Settings temporarily unavailable' });
+            const category = data.replace('edit_buttons:', '');
+            await SettingsHandler.handleButtonEdit(callbackQuery, category);
         }
         else if (data.startsWith('edit_button:')) {
-            // const buttonKey = data.replace('edit_button:', '');
-            // await SettingsHandler.handleIndividualButtonEdit(callbackQuery, buttonKey);
-            await bot.answerCallbackQuery(callbackQuery.id, { text: '❌ Settings temporarily unavailable' });
+            const buttonKey = data.replace('edit_button:', '');
+            await SettingsHandler.handleIndividualButtonEdit(callbackQuery, buttonKey);
         }
         else if (data === 'settings_back') {
-            // await SettingsHandler.showSettingsDashboard(callbackQuery.message);
-            await bot.answerCallbackQuery(callbackQuery.id, { text: '❌ Settings temporarily unavailable' });
+            await SettingsHandler.showSettingsDashboard(callbackQuery.message);
         }
         else if (data === 'button_management_back') {
-            // await SettingsHandler.showButtonManagement(callbackQuery.message);
-            await bot.answerCallbackQuery(callbackQuery.id, { text: '❌ Settings temporarily unavailable' });
+            await SettingsHandler.showButtonManagement(callbackQuery.message);
         }
         else if (data === 'cancel_edit') {
-            // SettingsHandler.clearEditingState(userId);
+            SettingsHandler.clearEditingState(userId);
             await bot.answerCallbackQuery(callbackQuery.id, { text: 'Editing cancelled' });
-            // await SettingsHandler.showSettingsDashboard(callbackQuery.message);
+            await SettingsHandler.showSettingsDashboard(callbackQuery.message);
         }
         // RESET FUNCTIONALITY
         else if (data === 'reset_all_settings') {
-            // await SettingsHandler.handleResetAction(callbackQuery, 'all');
-            await bot.answerCallbackQuery(callbackQuery.id, { text: '❌ Settings temporarily unavailable' });
+            await SettingsHandler.handleResetAction(callbackQuery, 'all');
         }
         else if (data === 'reset_financial') {
-            // await SettingsHandler.handleResetAction(callbackQuery, 'financial');
-            await bot.answerCallbackQuery(callbackQuery.id, { text: '❌ Settings temporarily unavailable' });
+            await SettingsHandler.handleResetAction(callbackQuery, 'financial');
         }
         else if (data === 'reset_features') {
-            // await SettingsHandler.handleResetAction(callbackQuery, 'features');
-            await bot.answerCallbackQuery(callbackQuery.id, { text: '❌ Settings temporarily unavailable' });
+            await SettingsHandler.handleResetAction(callbackQuery, 'features');
         }
         else if (data === 'reset_messages') {
-            // await SettingsHandler.handleResetAction(callbackQuery, 'messages');
-            await bot.answerCallbackQuery(callbackQuery.id, { text: '❌ Settings temporarily unavailable' });
+            await SettingsHandler.handleResetAction(callbackQuery, 'messages');
         }
         // STUDENT MANAGEMENT CALLBACKS
         else if (data.startsWith('students_') || data.startsWith('export_') || data === 'detailed_referrals') {
