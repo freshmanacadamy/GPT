@@ -25,6 +25,7 @@ class AdminHandler {
                 keyboard: [
                     [{ text: '👥 Manage Students' }, { text: '💰 Review Payments' }],
                     [{ text: '📊 Student Stats' }, { text: '📢 Broadcast Message' }],
+                    [{ text: '⚙️ Bot Settings' }],
                     [{ text: '🔙 Back to Menu' }]
                 ],
                 resize_keyboard: true
@@ -60,40 +61,22 @@ class AdminHandler {
                 { parse_mode: 'Markdown' }
             );
 
-            // 4. Show message options to admin
-            await this.showPostApprovalMessageOptions(adminId, user);
+            // 4. Confirm approval to the admin
+            await bot.sendMessage(adminId,
+                `✅ *User Approved & Welcome Sent!*\n\n` +
+                `👤 Name: ${user.name}\n` +
+                `📱 Phone: ${user.phone}\n` +
+                `🎓 Stream: ${user.studentType === 'natural' ? 'Natural Science' : 'Social Science'}`,
+                { parse_mode: 'Markdown' }
+            );
+
+            // 5. Automatically send the welcome template
+            await this.sendWelcomeTemplate(adminId, targetUserId);
 
         } catch (error) {
             console.error('Error in admin approval:', error);
             await bot.sendMessage(adminId, '❌ Error approving user.');
         }
-    }
-
-    // Show message options after approval
-    static async showPostApprovalMessageOptions(adminId, user) {
-        const message = 
-            `✅ *User Approved!*\n\n` +
-            `👤 Name: ${user.name}\n` +
-            `📱 Phone: ${user.phone}\n` +
-            `🎓 Stream: ${user.studentType === 'natural' ? 'Natural Science' : 'Social Science'}\n\n` +
-            `💬 Send welcome message to user?`;
-
-        const options = {
-            reply_markup: {
-                inline_keyboard: [
-                    [
-                        { text: "📝 Send Custom Message", callback_data: `custom_msg:${user.telegramId}` },
-                        { text: "🚀 Send Welcome Template", callback_data: `welcome_template:${user.telegramId}` }
-                    ],
-                    [
-                        { text: "❌ Skip", callback_data: `skip_message:${user.telegramId}` }
-                    ]
-                ]
-            },
-            parse_mode: 'Markdown'
-        };
-
-        await bot.sendMessage(adminId, message, options);
     }
 
     // Send welcome template to user
@@ -132,12 +115,6 @@ class AdminHandler {
 
             // Send to user
             await bot.sendMessage(targetUserId, welcomeMessage, buttons);
-            
-            // Confirm to admin
-            await bot.sendMessage(adminId, 
-                `✅ Welcome message sent to ${user.name}!`,
-                { parse_mode: 'Markdown' }
-            );
 
         } catch (error) {
             console.error('Error sending welcome template:', error);
@@ -145,37 +122,6 @@ class AdminHandler {
         }
     }
 
-    // Start custom message composition
-    static async startCustomMessage(adminId, targetUserId) {
-        try {
-            const user = await getUser(targetUserId);
-            if (!user) {
-                await bot.sendMessage(adminId, '❌ User not found.');
-                return;
-            }
-
-            // Store composition state
-            adminMessageState.set(adminId, { 
-                type: 'single_user',
-                composingFor: targetUserId,
-                targetName: user.name,
-                step: 'waiting_message',
-                messageText: '',
-                buttons: []
-            });
-
-            await bot.sendMessage(adminId, 
-                `✏️ *Compose Custom Message for ${user.name}*\n\n` +
-                `Please type the message you want to send:\n\n` +
-                `You can add inline buttons after writing the message.`,
-                { parse_mode: 'Markdown' }
-            );
-
-        } catch (error) {
-            console.error('Error starting custom message:', error);
-            await bot.sendMessage(adminId, '❌ Error starting message composition.');
-        }
-    }
 
     // Handle custom message text input
     static async handleCustomMessageText(adminId, text) {
@@ -404,14 +350,6 @@ class AdminHandler {
         await this.showButtonBuilder(adminId);
     }
 
-    // Skip messaging
-    static async skipMessaging(adminId, targetUserId) {
-        const user = await getUser(targetUserId);
-        await bot.sendMessage(adminId, 
-            `✅ No message sent to ${user?.name || 'user'}.`,
-            { parse_mode: 'Markdown' }
-        );
-    }
 
     // Handle admin rejection
     static async handleAdminReject(targetUserId, adminId) {

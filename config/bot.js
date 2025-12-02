@@ -5,5 +5,6 @@ if (!BOT_TOKEN) {
     throw new Error('❌ BOT_TOKEN environment variable is required');
 }
 
-const bot = new TelegramBot(BOT_TOKEN);
+// Vercel deployment uses webhooks, not polling
+const bot = new TelegramBot(BOT_TOKEN, { polling: false });
 module.exports = bot;
