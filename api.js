@@ -1,11 +1,14 @@
 // Initialize configuration
 const { initializeConfig } = require('./config/environment');
 
-initializeConfig().then(() => {
+// This promise will be awaited on the first request to ensure config is loaded
+const initPromise = initializeConfig().then(() => {
     console.log('Bot configuration initialized');
 }).catch(error => {
     console.error('Failed to initialize config:', error);
+    // Allow the bot to continue running with default/env values even if DB config fails
 });
+let isInitialized = false;
 
 // Global error handlers
 process.on('unhandledRejection', (error) => {
@@ -400,19 +403,6 @@ const handleCallbackQuery = async (callbackQuery) => {
             const targetUserId = parseInt(data.replace('admin_details_', ''));
             await AdminHandler.handleAdminDetails(targetUserId, userId);
         }
-        // Admin approval messaging callbacks
-        else if (data.startsWith('welcome_template:')) {
-            const targetUserId = parseInt(data.replace('welcome_template:', ''));
-            await AdminHandler.sendWelcomeTemplate(userId, targetUserId);
-        }
-        else if (data.startsWith('custom_msg:')) {
-            const targetUserId = parseInt(data.replace('custom_msg:', ''));
-            await AdminHandler.startCustomMessage(userId, targetUserId);
-        }
-        else if (data.startsWith('skip_message:')) {
-            const targetUserId = parseInt(data.replace('skip_message:', ''));
-            await AdminHandler.skipMessaging(userId, targetUserId);
-        }
         else if (data.startsWith('add_url:')) {
             const targetUserId = parseInt(data.replace('add_url:', ''));
             await AdminHandler.addUrlButton(userId, targetUserId);
@@ -479,6 +469,12 @@ module.exports.adminMessageState = adminMessageState;
 
 // VERCEL HANDLER
 module.exports = async (req, res) => {
+    // Ensure config is loaded before handling any request
+    if (!isInitialized) {
+        await initPromise;
+        isInitialized = true;
+    }
+
     // Set CORS headers
     res.setHeader('Access-Control-Allow-Credentials', true);
     res.setHeader('Access-Control-Allow-Origin', '*');
