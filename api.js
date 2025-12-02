@@ -1,42 +1,40 @@
-// Add at the top of api.js
+// Initialize configuration
 const { initializeConfig } = require('./config/environment');
 
-// Initialize configuration on startup
 initializeConfig().then(() => {
-    console.log('✅ Bot configuration initialized');
+    console.log('Bot configuration initialized');
 }).catch(error => {
-    console.error('❌ Failed to initialize config:', error);
+    console.error('Failed to initialize config:', error);
 });
 
 // Global error handlers
 process.on('unhandledRejection', (error) => {
-    console.error('🔴 Unhandled Promise Rejection:', error);
+    console.error('Unhandled Promise Rejection:', error);
 });
 
 process.on('uncaughtException', (error) => {
-    console.error('🔴 Uncaught Exception:', error);
+    console.error('Uncaught Exception:', error);
 });
 
 // Import configurations
 const bot = require('./config/bot');
 const { showMainMenu } = require('./handlers/menu');
 const environment = require('./config/environment');
-const { BUTTON_TEXTS } = require('./config/environment');
 
 // Import handlers
-const { 
-    handleRegisterTutorial, 
-    handleNameInput, 
-    handleContactShared, 
+const {
+    handleRegisterTutorial,
+    handleNameInput,
+    handleContactShared,
     handleScreenshotUpload,
     handleNavigation,
-    handleRegistrationCallback 
+    handleRegistrationCallback
 } = require('./handlers/registration');
 
 const { handlePayFee } = require('./handlers/payment');
 const { handleInviteEarn, handleLeaderboard, handleMyReferrals, handleReferralStart } = require('./handlers/referral');
 const { handleMyProfile, handleWithdrawRewards, handleChangePaymentMethod, handleSetPaymentMethod } = require('./handlers/profile');
-const { handleAdminPanel, handleAdminApprove, handleAdminReject, handleAdminDetails, handleAdminStats } = require('./handlers/admin');
+const AdminHandler = require('./handlers/admin');
 const { handleHelp, handleRules } = require('./handlers/help');
 const SettingsHandler = require('./handlers/settings');
 const StudentManagement = require('./handlers/studentManagement');
@@ -46,7 +44,10 @@ const { getAllUsers, getVerifiedUsers } = require('./database/users');
 const { getPendingPayments } = require('./database/payments');
 const { getPendingWithdrawals } = require('./database/withdrawals');
 
-// ========== MESSAGE HANDLER ========== //
+// Store admin message composition state
+const adminMessageState = new Map();
+
+// MESSAGE HANDLER
 const handleMessage = async (msg) => {
     const chatId = msg.chat.id;
     const userId = msg.from.id;
@@ -70,13 +71,13 @@ const handleMessage = async (msg) => {
                 const handled = await AdminHandler.handleBroadcastMessageText(userId, text);
                 if (handled) return;
             }
-            
+
             // Handle single user message text
             if (adminState.type === 'single_user' && adminState.step === 'waiting_message') {
                 const handled = await AdminHandler.handleCustomMessageText(userId, text);
                 if (handled) return;
             }
-            
+
             // Handle button data input (both single and broadcast)
             if (adminState.step === 'adding_url_button' || adminState.step === 'adding_callback_button') {
                 const handled = await AdminHandler.handleButtonData(userId, text);
@@ -92,12 +93,12 @@ const handleMessage = async (msg) => {
         }
 
         // Check if user is in delete confirmation mode
-        if (text === 'CONFIRM DELETE' || text === '❌ Cancel Delete') {
+        if (text === 'CONFIRM DELETE' || text === 'Cancel Delete') {
             await StudentManagement.handleDeleteConfirmation(msg, text);
             return;
         }
 
-        // First check if it's a navigation command (Cancel Registration, Homepage)
+        // First check if it's a navigation command
         const isNavigation = await handleNavigation(msg);
         if (isNavigation) return;
 
@@ -120,20 +121,20 @@ const handleMessage = async (msg) => {
                     await handleStart(msg);
                     break;
                 case '/admin':
-                    await handleAdminPanel(msg);
+                    await AdminHandler.handleAdminPanel(msg);
                     break;
                 case '/help':
                     await handleHelp(msg);
                     break;
                 case '/stats':
-                    await handleAdminStats(msg);
+                    await AdminHandler.handleAdminStats(msg);
                     break;
                 case '/register':
                     await handleRegisterTutorial(msg);
                     break;
                 case '/cancel':
                     SettingsHandler.clearEditingState(userId);
-                    await bot.sendMessage(chatId, '❌ Editing cancelled.');
+                    await bot.sendMessage(chatId, 'Editing cancelled.');
                     await showMainMenu(chatId);
                     break;
                 default:
@@ -145,124 +146,123 @@ const handleMessage = async (msg) => {
         }
     } catch (error) {
         console.error('Error handling message:', error);
-        await bot.sendMessage(chatId, '❌ An error occurred. Please try again.');
+        await bot.sendMessage(chatId, 'An error occurred. Please try again.');
     }
 };
 
 // Dynamic button click handler
 async function handleButtonClick(msg, text) {
     const chatId = msg.chat.id;
-    
-    // ✅ FIXED: Access BUTTON_TEXTS getter EVERY TIME (not stored as variable)
+
+    // Get fresh button texts from environment
     const buttons = environment.BUTTON_TEXTS;
 
     // Handle main menu buttons
     switch (text) {
         case buttons.REGISTER:
-        case '📚 Register for Tutorial':
+        case 'Register for Tutorial':
             await handleRegisterTutorial(msg);
             break;
         case buttons.PROFILE:
-        case '👤 My Profile':
+        case 'My Profile':
             await handleMyProfile(msg);
             break;
         case buttons.INVITE:
-        case '🎁 Invite & Earn':
+        case 'Invite & Earn':
             await handleInviteEarn(msg);
             break;
         case buttons.LEADERBOARD:
-        case '📈 Leaderboard':
+        case 'Leaderboard':
             await handleLeaderboard(msg);
             break;
         case buttons.HELP:
-        case '❓ Help':
+        case 'Help':
             await handleHelp(msg);
             break;
         case buttons.RULES:
-        case '📌 Rules':
+        case 'Rules':
             await handleRules(msg);
             break;
         case buttons.PAY_FEE:
-        case '💰 Pay Tutorial Fee':
+        case 'Pay Tutorial Fee':
             await handlePayFee(msg);
             break;
         case buttons.WITHDRAW:
-        case '💰 Withdraw Rewards':
+        case 'Withdraw Rewards':
             await handleWithdrawRewards(msg);
             break;
         case buttons.CHANGE_PAYMENT:
-        case '💳 Change Payment Method':
+        case 'Change Payment Method':
             await handleChangePaymentMethod(msg);
             break;
         case buttons.MY_REFERRALS:
-        case '📊 My Referrals':
+        case 'My Referrals':
             await handleMyReferrals(msg);
             break;
-            
+
         // Admin buttons
         case buttons.ADMIN_PANEL:
-        case '🛠️ Admin Panel':
-            await handleAdminPanel(msg);
+        case 'Admin Panel':
+            await AdminHandler.handleAdminPanel(msg);
             break;
         case buttons.BOT_SETTINGS:
-        case '⚙️ Bot Settings':
+        case 'Bot Settings':
             await SettingsHandler.showSettingsDashboard(msg);
             break;
-        case '💰 Financial Settings':
+        case 'Financial Settings':
             await SettingsHandler.showFinancialSettings(msg);
             break;
-        case '⚙️ Feature Toggles':
+        case 'Feature Toggles':
             await SettingsHandler.showFeatureToggles(msg);
             break;
-        case '📝 Message Management':
+        case 'Message Management':
             await SettingsHandler.showMessageManagement(msg);
             break;
-        case '🔧 Button Texts':
+        case 'Button Texts':
             await SettingsHandler.showButtonManagement(msg);
             break;
-        case '🔄 Reset Settings':
+        case 'Reset Settings':
             await SettingsHandler.handleResetSettings(msg);
             break;
-        case '📊 View All Config':
+        case 'View All Config':
             await SettingsHandler.handleViewAllConfig(msg);
             break;
-        case '📢 Broadcast Message':
+        case 'Broadcast Message':
             await AdminHandler.handleBroadcastMessage(msg);
             break;
 
         // Student Management buttons
-        case '👥 Manage Students':
-        case '📋 View All Students':
+        case 'Manage Students':
+        case 'View All Students':
             await StudentManagement.viewAllStudents(msg);
             break;
-        case '✅ Paid Students':
+        case 'Paid Students':
             await StudentManagement.viewAllStudents(msg, 'paid');
             break;
-        case '❌ Unpaid Students':
+        case 'Unpaid Students':
             await StudentManagement.viewAllStudents(msg, 'unpaid');
             break;
-        case '👥 Referral Tree':
+        case 'Referral Tree':
             await StudentManagement.showReferralTree(msg);
             break;
-        case '📅 Set Date Filter':
+        case 'Set Date Filter':
             await StudentManagement.showDateFilter(msg);
             break;
-        case '📤 Export Data':
+        case 'Export Data':
             await StudentManagement.showExportOptions(msg);
             break;
-        case '🗑️ Delete Students':
+        case 'Delete Students':
             await StudentManagement.showDeleteOptions(msg);
             break;
-            
-        // Navigation buttons (keep these static for now)
-        case '🔙 Back to Menu':
+
+        // Navigation buttons
+        case 'Back to Menu':
             await showMainMenu(chatId);
             break;
-        case '🔙 Back to Admin Panel':
-            await handleAdminPanel(msg);
+        case 'Back to Admin Panel':
+            await AdminHandler.handleAdminPanel(msg);
             break;
-        case '📤 Upload Payment Screenshot':
-        case '📎 Upload Payment Screenshot':
+        case 'Upload Payment Screenshot':
             await handleScreenshotUpload(msg);
             break;
         default:
@@ -279,7 +279,7 @@ async function handleEditingInput(msg, editingState) {
 
     if (text === '/cancel') {
         SettingsHandler.clearEditingState(userId);
-        await bot.sendMessage(chatId, '❌ Editing cancelled.');
+        await bot.sendMessage(chatId, 'Editing cancelled.');
         await SettingsHandler.showSettingsDashboard(msg);
         return;
     }
@@ -295,28 +295,32 @@ async function handleEditingInput(msg, editingState) {
             await SettingsHandler.handleButtonInput(msg, editingState.key, text);
             break;
         default:
-            await bot.sendMessage(chatId, '❌ Unknown editing mode. Cancelling.');
+            await bot.sendMessage(chatId, 'Unknown editing mode. Cancelling.');
             SettingsHandler.clearEditingState(userId);
     }
 }
 
-// ========== START COMMAND ========== //
+// START COMMAND
 const handleStart = async (msg) => {
     const chatId = msg.chat.id;
     const userId = msg.from.id;
-    
+
     // Handle referral tracking
     await handleReferralStart(msg, userId);
-    
-    // ✅ FIXED: Access MESSAGES getter directly
-    await bot.sendMessage(chatId, environment.MESSAGES.START_WELCOME, {
+
+    // Get fresh message from environment
+    const startMessage = environment.MESSAGES.START_WELCOME
+        .replace('{fee}', environment.REGISTRATION_FEE)
+        .replace('{reward}', environment.REFERRAL_REWARD);
+
+    await bot.sendMessage(chatId, startMessage, {
         parse_mode: 'Markdown'
     });
 
     await showMainMenu(chatId);
 };
 
-// ========== CALLBACK QUERY HANDLER ========== //
+// CALLBACK QUERY HANDLER
 const handleCallbackQuery = async (callbackQuery) => {
     const message = callbackQuery.message;
     const userId = callbackQuery.from.id;
@@ -324,12 +328,12 @@ const handleCallbackQuery = async (callbackQuery) => {
     const chatId = message.chat.id;
 
     try {
-        console.log('🔵 Callback received:', data);
+        console.log('Callback received:', data);
 
         // First try the new registration callback handler
         const handled = await handleRegistrationCallback(callbackQuery);
         if (handled) {
-            console.log('✅ Registration callback handled');
+            console.log('Registration callback handled');
             await bot.answerCallbackQuery(callbackQuery.id);
             return;
         }
@@ -386,15 +390,15 @@ const handleCallbackQuery = async (callbackQuery) => {
         // Admin callbacks
         else if (data.startsWith('admin_approve_')) {
             const targetUserId = parseInt(data.replace('admin_approve_', ''));
-            await handleAdminApprove(targetUserId, userId);
+            await AdminHandler.handleAdminApprove(targetUserId, userId);
         }
         else if (data.startsWith('admin_reject_')) {
             const targetUserId = parseInt(data.replace('admin_reject_', ''));
-            await handleAdminReject(targetUserId, userId);
+            await AdminHandler.handleAdminReject(targetUserId, userId);
         }
         else if (data.startsWith('admin_details_')) {
             const targetUserId = parseInt(data.replace('admin_details_', ''));
-            await handleAdminDetails(targetUserId, userId);
+            await AdminHandler.handleAdminDetails(targetUserId, userId);
         }
         // Admin approval messaging callbacks
         else if (data.startsWith('welcome_template:')) {
@@ -435,7 +439,7 @@ const handleCallbackQuery = async (callbackQuery) => {
         }
         // Broadcast callbacks
         else if (data.startsWith('broadcast_')) {
-            if (data === 'broadcast_all' || data === 'broadcast_verified' || 
+            if (data === 'broadcast_all' || data === 'broadcast_verified' ||
                 data === 'broadcast_natural' || data === 'broadcast_social' ||
                 data === 'broadcast_pending_approval') {
                 await AdminHandler.setBroadcastTarget(callbackQuery, data);
@@ -460,17 +464,20 @@ const handleCallbackQuery = async (callbackQuery) => {
             }
         }
         else {
-            console.log('❌ No handler found for callback:', data);
+            console.log('No handler found for callback:', data);
             await bot.answerCallbackQuery(callbackQuery.id, { text: 'Unknown command' });
         }
 
     } catch (error) {
-        console.error('❌ Callback error:', error);
-        await bot.answerCallbackQuery(callbackQuery.id, { text: '❌ Error processing request' });
+        console.error('Callback error:', error);
+        await bot.answerCallbackQuery(callbackQuery.id, { text: 'Error processing request' });
     }
 };
 
-// ========== VERCEL HANDLER ========== //
+// Export admin state for use in handlers
+module.exports.adminMessageState = adminMessageState;
+
+// VERCEL HANDLER
 module.exports = async (req, res) => {
     // Set CORS headers
     res.setHeader('Access-Control-Allow-Credentials', true);
@@ -493,7 +500,7 @@ module.exports = async (req, res) => {
 
             return res.status(200).json({
                 status: 'online',
-                message: 'Tutorial Registration Bot is running on Vercel!',
+                message: 'Tutorial Registration Bot is running on Vercel',
                 timestamp: new Date().toISOString(),
                 stats: {
                     users: Object.keys(allUsers).length,
@@ -512,7 +519,7 @@ module.exports = async (req, res) => {
     if (req.method === 'POST') {
         try {
             const update = req.body;
-            console.log('📨 Webhook update received');
+            console.log('Webhook update received');
 
             if (update.message) {
                 await handleMessage(update.message);
@@ -522,7 +529,7 @@ module.exports = async (req, res) => {
 
             return res.status(200).json({ ok: true });
         } catch (error) {
-            console.error('❌ Error processing update:', error);
+            console.error('Error processing update:', error);
             return res.status(500).json({ error: 'Internal server error' });
         }
     }
@@ -530,4 +537,4 @@ module.exports = async (req, res) => {
     return res.status(405).json({ error: 'Method not allowed' });
 };
 
-console.log('✅ Tutorial Registration Bot configured for Vercel!');
+console.log('Tutorial Registration Bot configured for Vercel');
