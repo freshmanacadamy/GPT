@@ -400,19 +400,6 @@ const handleCallbackQuery = async (callbackQuery) => {
             const targetUserId = parseInt(data.replace('admin_details_', ''));
             await AdminHandler.handleAdminDetails(targetUserId, userId);
         }
-        // Admin approval messaging callbacks
-        else if (data.startsWith('welcome_template:')) {
-            const targetUserId = parseInt(data.replace('welcome_template:', ''));
-            await AdminHandler.sendWelcomeTemplate(userId, targetUserId);
-        }
-        else if (data.startsWith('custom_msg:')) {
-            const targetUserId = parseInt(data.replace('custom_msg:', ''));
-            await AdminHandler.startCustomMessage(userId, targetUserId);
-        }
-        else if (data.startsWith('skip_message:')) {
-            const targetUserId = parseInt(data.replace('skip_message:', ''));
-            await AdminHandler.skipMessaging(userId, targetUserId);
-        }
         else if (data.startsWith('add_url:')) {
             const targetUserId = parseInt(data.replace('add_url:', ''));
             await AdminHandler.addUrlButton(userId, targetUserId);
